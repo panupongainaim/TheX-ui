@@ -129,8 +129,7 @@ function Dialog.open(parent, config)
 		ZIndex = 9,
 		Parent = overlay,
 	})
-	Theme.paint(card, "BackgroundColor3", "window")
-	Ui.corner(card, 10)
+	Ui.panel(card)
 	Ui.padding(card, 14)
 	Ui.list(card, 10)
 
@@ -187,23 +186,23 @@ function Dialog.open(parent, config)
 	end
 
 	for index, spec in ipairs(buttons) do
-		local button = Ui.inst("TextButton", {
-			AutoButtonColor = false,
-			Text = spec.title or "OK",
-			Font = Enum.Font.GothamMedium,
-			TextSize = 14,
-			Size = UDim2.fromOffset(108, 34),
-			BorderSizePixel = 0,
-			LayoutOrder = index,
-			ZIndex = 10,
-			Parent = row,
-		})
-		Ui.corner(button, 8)
+		local button
 		if index == 1 then
-			Theme.paint(button, "BackgroundColor3", "accent")
-			Theme.paint(button, "TextColor3", "accentText")
+			button = Ui.accentButton(row, spec.title or "OK", UDim2.fromOffset(108, 34), index)
 		else
-			Theme.paint(button, "BackgroundColor3", "track")
+			button = Ui.inst("TextButton", {
+				AutoButtonColor = false,
+				Text = spec.title or "OK",
+				Font = Enum.Font.GothamMedium,
+				TextSize = 14,
+				Size = UDim2.fromOffset(108, 34),
+				BorderSizePixel = 0,
+				LayoutOrder = index,
+				ZIndex = 10,
+				Parent = row,
+			})
+			Ui.corner(button, 8)
+			Ui.field(button)
 			Theme.paint(button, "TextColor3", "text")
 		end
 		button.MouseButton1Click:Connect(function()
@@ -218,17 +217,55 @@ end
 return Dialog
 end
 
+modules["Games"] = function(require)
+local Games = {}
+
+function Games.ids(list)
+	local set = {}
+	local count = 0
+	if type(list) ~= "table" then
+		return set, count
+	end
+	local function add(value)
+		local id = tonumber(value)
+		if id and not set[id] then
+			set[id] = true
+			count += 1
+		end
+	end
+	for key, value in pairs(list) do
+		if type(value) == "number" or (type(value) == "string" and tonumber(value)) then
+			add(value)
+		elseif value ~= false and tonumber(key) then
+			add(key)
+		end
+	end
+	return set, count
+end
+
+function Games.count(list)
+	local _, count = Games.ids(list)
+	return count
+end
+
+function Games.supported(list)
+	local set = Games.ids(list)
+	return set[game.PlaceId] == true or set[game.GameId] == true
+end
+
+return Games
+end
+
 modules[""] = function(require)
 local Notify = require("Notify")
 local Theme = require("Theme")
 local Window = require("Window")
 
 local TheX = {
-	version = "1.0.0",
+	version = "1.1.0",
 }
 
 local windows = {}
-local noticeGui = nil
 
 function TheX.window(config)
 	local window = Window.create(config)
@@ -248,10 +285,7 @@ function TheX.window(config)
 end
 
 function TheX.notify(config)
-	if noticeGui == nil or noticeGui.Parent == nil then
-		noticeGui = Notify.mount()
-	end
-	return Notify.push(noticeGui, config or {})
+	return Notify.show(config)
 end
 
 function TheX.setTheme(name)
@@ -267,10 +301,7 @@ function TheX.destroy()
 		window:destroy()
 	end
 	table.clear(windows)
-	if noticeGui and noticeGui.Parent then
-		noticeGui:Destroy()
-	end
-	noticeGui = nil
+	Notify.clear()
 end
 
 if getgenv then
@@ -285,6 +316,8 @@ local Theme = require("Theme")
 local Ui = require("Ui")
 
 local Notify = {}
+
+local mounted = nil
 
 function Notify.mount()
 	local gui = Ui.screen("TheXNotices", 100001)
@@ -318,18 +351,19 @@ function Notify.push(gui, config)
 		BorderSizePixel = 0,
 		Parent = holder,
 	})
-	Theme.paint(card, "BackgroundColor3", "notice")
-	Ui.corner(card, 8)
+	Ui.glass(card, "notice", 0.08, 0.45)
+	Ui.corner(card, 10)
 	Ui.padding(card, 12)
 	Ui.list(card, 4)
 
 	local bar = Ui.inst("Frame", {
 		Size = UDim2.new(1, 0, 0, 3),
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		BorderSizePixel = 0,
 		LayoutOrder = 1,
 		Parent = card,
 	})
-	Theme.paint(bar, "BackgroundColor3", "accent")
+	Ui.gradient(bar, "accent", "accent2", 0)
 	Ui.corner(bar, 2)
 
 	local title = Ui.label({
@@ -372,6 +406,20 @@ function Notify.push(gui, config)
 	return { dismiss = dismiss }
 end
 
+function Notify.show(config)
+	if mounted == nil or mounted.Parent == nil then
+		mounted = Notify.mount()
+	end
+	return Notify.push(mounted, config or {})
+end
+
+function Notify.clear()
+	if mounted and mounted.Parent then
+		mounted:Destroy()
+	end
+	mounted = nil
+end
+
 return Notify
 end
 
@@ -386,6 +434,10 @@ local Dropdown = require("Widgets/Dropdown")
 local Input = require("Widgets/Input")
 local Keybind = require("Widgets/Keybind")
 local Colorpicker = require("Widgets/Colorpicker")
+local Profile = require("Widgets/Profile")
+local Stats = require("Widgets/Stats")
+local GameInfo = require("Widgets/GameInfo")
+local Actions = require("Widgets/Actions")
 
 local Tab = {}
 
@@ -393,23 +445,54 @@ function Tab.create(window, config)
 	local tab = {
 		window = window,
 		selected = false,
+		hovered = false,
 		_order = 0,
 	}
 
 	tab.tabButton = Ui.inst("TextButton", {
 		Name = (config.title or "Tab") .. "Tab",
 		AutoButtonColor = false,
-		Text = config.title or "Tab",
-		Font = Enum.Font.GothamMedium,
-		TextSize = 14,
-		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = "",
 		Size = UDim2.new(1, -16, 0, 34),
+		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Parent = window.rail,
 	})
-	Ui.corner(tab.tabButton, 8)
-	Ui.inst("UIPadding", {
-		PaddingLeft = UDim.new(0, 10),
+	local fill = Ui.inst("Frame", {
+		Name = "Fill",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ZIndex = 1,
+		Parent = tab.tabButton,
+	})
+	Ui.corner(fill, 8)
+	Theme.paint(fill, "BackgroundColor3", "accent")
+	Ui.inst("UIGradient", {
+		Transparency = NumberSequence.new(0.7, 0.97),
+		Parent = fill,
+	})
+	local indicator = Ui.inst("Frame", {
+		Name = "Indicator",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.fromScale(0, 0.5),
+		Size = UDim2.fromOffset(3, 18),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		Visible = false,
+		ZIndex = 2,
+		Parent = tab.tabButton,
+	})
+	Ui.corner(indicator, 2)
+	Ui.gradient(indicator, "accent", "accent2", 90)
+	local label = Ui.label({
+		Text = config.title or "Tab",
+		Font = Enum.Font.GothamMedium,
+		TextSize = 14,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Position = UDim2.fromOffset(14, 0),
+		Size = UDim2.new(1, -18, 1, 0),
+		ZIndex = 3,
 		Parent = tab.tabButton,
 	})
 
@@ -437,8 +520,11 @@ function Tab.create(window, config)
 
 	function tab:paint()
 		self.page.Visible = self.selected
-		self.tabButton.BackgroundColor3 = self.selected and Theme.color("accent") or Theme.color("rail")
-		self.tabButton.TextColor3 = self.selected and Theme.color("accentText") or Theme.color("text")
+		indicator.Visible = self.selected
+		local fillTransparency = (self.selected and 0) or (self.hovered and 0.55) or 1
+		Ui.tween(fill, { BackgroundTransparency = fillTransparency }, 0.12)
+		local token = (self.selected and "accent") or (self.hovered and "text") or "muted"
+		label.TextColor3 = Theme.color(token)
 	end
 
 	function tab:paragraph(options)
@@ -465,9 +551,29 @@ function Tab.create(window, config)
 	function tab:colorpicker(options)
 		return Colorpicker.create(self, options or {})
 	end
+	function tab:profile(options)
+		return Profile.create(self, options or {})
+	end
+	function tab:stats(options)
+		return Stats.create(self, options or {})
+	end
+	function tab:gameInfo(options)
+		return GameInfo.create(self, options or {})
+	end
+	function tab:actions(options)
+		return Actions.create(self, options or {})
+	end
 
 	tab.tabButton.MouseButton1Click:Connect(function()
 		window:select(tab)
+	end)
+	tab.tabButton.MouseEnter:Connect(function()
+		tab.hovered = true
+		tab:paint()
+	end)
+	tab.tabButton.MouseLeave:Connect(function()
+		tab.hovered = false
+		tab:paint()
 	end)
 	Theme.onChange(function()
 		if tab.tabButton.Parent then
@@ -486,18 +592,22 @@ local Theme = {
 	name = "Dark",
 	palettes = {
 		Dark = {
-			window = Color3.fromRGB(22, 24, 31),
-			rail = Color3.fromRGB(28, 31, 40),
-			bar = Color3.fromRGB(34, 38, 49),
-			row = Color3.fromRGB(40, 44, 58),
-			text = Color3.fromRGB(240, 237, 230),
-			muted = Color3.fromRGB(168, 164, 154),
-			accent = Color3.fromRGB(214, 146, 58),
-			accentText = Color3.fromRGB(32, 22, 10),
-			stroke = Color3.fromRGB(68, 72, 86),
-			track = Color3.fromRGB(54, 58, 72),
-			danger = Color3.fromRGB(186, 84, 74),
-			notice = Color3.fromRGB(30, 33, 43),
+			window = Color3.fromRGB(10, 17, 40),
+			rail = Color3.fromRGB(12, 22, 50),
+			bar = Color3.fromRGB(15, 28, 61),
+			row = Color3.fromRGB(19, 35, 74),
+			text = Color3.fromRGB(230, 240, 255),
+			muted = Color3.fromRGB(143, 163, 199),
+			accent = Color3.fromRGB(0, 180, 255),
+			accent2 = Color3.fromRGB(37, 99, 255),
+			accentText = Color3.fromRGB(245, 250, 255),
+			glow = Color3.fromRGB(0, 200, 255),
+			stroke = Color3.fromRGB(38, 62, 118),
+			track = Color3.fromRGB(24, 42, 86),
+			danger = Color3.fromRGB(232, 72, 104),
+			success = Color3.fromRGB(46, 230, 150),
+			warning = Color3.fromRGB(214, 150, 110),
+			notice = Color3.fromRGB(13, 24, 54),
 		},
 		Light = {
 			window = Color3.fromRGB(246, 242, 234),
@@ -507,10 +617,14 @@ local Theme = {
 			text = Color3.fromRGB(36, 32, 28),
 			muted = Color3.fromRGB(110, 100, 88),
 			accent = Color3.fromRGB(176, 98, 32),
+			accent2 = Color3.fromRGB(140, 66, 18),
 			accentText = Color3.fromRGB(255, 248, 238),
+			glow = Color3.fromRGB(196, 124, 54),
 			stroke = Color3.fromRGB(214, 204, 188),
 			track = Color3.fromRGB(214, 206, 192),
 			danger = Color3.fromRGB(168, 64, 54),
+			success = Color3.fromRGB(46, 140, 84),
+			warning = Color3.fromRGB(176, 108, 62),
 			notice = Color3.fromRGB(255, 250, 242),
 		},
 	},
@@ -521,12 +635,24 @@ local listeners = {}
 
 function Theme.color(token)
 	local palette = Theme.palettes[Theme.name] or Theme.palettes.Dark
-	return palette[token]
+	return palette[token] or Theme.palettes.Dark[token]
+end
+
+local function bind(instance, apply)
+	apply()
+	table.insert(bindings, { instance, apply })
 end
 
 function Theme.paint(instance, property, token)
-	instance[property] = Theme.color(token)
-	table.insert(bindings, { instance, property, token })
+	bind(instance, function()
+		instance[property] = Theme.color(token)
+	end)
+end
+
+function Theme.gradient(gradient, from, to)
+	bind(gradient, function()
+		gradient.Color = ColorSequence.new(Theme.color(from), Theme.color(to))
+	end)
 end
 
 function Theme.onChange(callback)
@@ -544,7 +670,7 @@ function Theme.set(name)
 	for _, binding in ipairs(bindings) do
 		local instance = binding[1]
 		if instance and instance.Parent then
-			instance[binding[2]] = Theme.color(binding[3])
+			binding[2]()
 			table.insert(alive, binding)
 		end
 	end
@@ -652,6 +778,139 @@ function Ui.tween(object, props, duration)
 	return tween
 end
 
+function Ui.stroke(parent, token, transparency, thickness)
+	local stroke = Ui.inst("UIStroke", {
+		Thickness = thickness or 1,
+		Transparency = transparency or 0,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Parent = parent,
+	})
+	Theme.paint(stroke, "Color", token or "stroke")
+	return stroke
+end
+
+function Ui.gradient(parent, from, to, rotation)
+	local gradient = Ui.inst("UIGradient", {
+		Rotation = rotation or 0,
+		Parent = parent,
+	})
+	Theme.gradient(gradient, from, to)
+	return gradient
+end
+
+function Ui.glass(frame, token, transparency, strokeTransparency)
+	Theme.paint(frame, "BackgroundColor3", token or "row")
+	frame.BackgroundTransparency = transparency or 0.3
+	return Ui.stroke(frame, "glow", strokeTransparency or 0.82, 1)
+end
+
+function Ui.panel(frame)
+	Ui.corner(frame, 10)
+	return Ui.glass(frame, "bar", 0.04, 0.45)
+end
+
+function Ui.field(object)
+	Theme.paint(object, "BackgroundColor3", "track")
+	object.BackgroundTransparency = 0.15
+	local stroke = Ui.stroke(object, "glow", 0.75, 1)
+	local hovered = false
+	local focused = false
+	local function refresh()
+		Ui.tween(stroke, { Transparency = (focused and 0.15) or (hovered and 0.4) or 0.75 }, 0.12)
+	end
+	object.MouseEnter:Connect(function()
+		hovered = true
+		refresh()
+	end)
+	object.MouseLeave:Connect(function()
+		hovered = false
+		refresh()
+	end)
+	if object:IsA("TextBox") then
+		object.Focused:Connect(function()
+			focused = true
+			refresh()
+		end)
+		object.FocusLost:Connect(function()
+			focused = false
+			refresh()
+		end)
+	end
+	return stroke
+end
+
+local REST = Color3.fromRGB(214, 222, 236)
+local BRIGHT = Color3.new(1, 1, 1)
+
+function Ui.accentButton(parent, text, size, order)
+	local holder = Ui.inst("Frame", {
+		Name = "Button",
+		BackgroundTransparency = 1,
+		Size = size or UDim2.new(1, 0, 0, 34),
+		LayoutOrder = order,
+		Parent = parent,
+	})
+	local face = Ui.inst("TextButton", {
+		Name = "Face",
+		AutoButtonColor = false,
+		Text = "",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = REST,
+		BorderSizePixel = 0,
+		Parent = holder,
+	})
+	Ui.corner(face, 8)
+	Ui.gradient(face, "accent", "accent2", 0)
+	local stroke = Ui.stroke(face, "glow", 0.65, 1)
+	local label = Ui.label({
+		Text = text or "",
+		Font = Enum.Font.GothamMedium,
+		TextSize = 14,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Size = UDim2.fromScale(1, 1),
+		Parent = face,
+	})
+	Theme.paint(label, "TextColor3", "accentText")
+
+	local hovered = false
+	local pressed = false
+	local function refresh()
+		Ui.tween(face, {
+			BackgroundColor3 = (hovered or pressed) and BRIGHT or REST,
+			Size = pressed and UDim2.new(1, -6, 1, -4) or UDim2.fromScale(1, 1),
+		}, 0.1)
+		Ui.tween(stroke, { Transparency = hovered and 0.15 or 0.65 }, 0.12)
+	end
+	local function isPress(input)
+		return input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch
+	end
+	face.MouseEnter:Connect(function()
+		hovered = true
+		refresh()
+	end)
+	face.MouseLeave:Connect(function()
+		hovered = false
+		pressed = false
+		refresh()
+	end)
+	face.InputBegan:Connect(function(input)
+		if isPress(input) then
+			pressed = true
+			refresh()
+		end
+	end)
+	face.InputEnded:Connect(function(input)
+		if isPress(input) then
+			pressed = false
+			refresh()
+		end
+	end)
+	return face, label, holder
+end
+
 function Ui.card(parent, order)
 	local row = Ui.inst("Frame", {
 		Name = "Row",
@@ -661,7 +920,7 @@ function Ui.card(parent, order)
 		LayoutOrder = order,
 		Parent = parent,
 	})
-	Theme.paint(row, "BackgroundColor3", "row")
+	Ui.glass(row)
 	Ui.corner(row, 8)
 	Ui.padding(row, 10)
 	Ui.list(row, 6)
@@ -676,7 +935,7 @@ function Ui.line(parent, order, height)
 		LayoutOrder = order,
 		Parent = parent,
 	})
-	Theme.paint(row, "BackgroundColor3", "row")
+	Ui.glass(row)
 	Ui.corner(row, 8)
 	return row
 end
@@ -744,9 +1003,118 @@ end
 return Ui
 end
 
+modules["Widgets/Actions"] = function(require)
+local Ui = require("Ui")
+local Notify = require("Notify")
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+
+local Actions = {}
+
+local GAP = 8
+
+local function clipboard()
+	local candidates = {
+		setclipboard,
+		toclipboard,
+		syn and syn.write_clipboard,
+	}
+	for index = 1, 3 do
+		if type(candidates[index]) == "function" then
+			return candidates[index]
+		end
+	end
+	return nil
+end
+
+local function copy(label, value)
+	local text = tostring(value or "")
+	if text == "" then
+		Notify.show({ title = label, content = "There is no " .. label .. " in this session.", duration = 4 })
+		return
+	end
+	local write = clipboard()
+	if write and pcall(write, text) then
+		Notify.show({ title = "Copied " .. label, content = text, duration = 3 })
+		return
+	end
+	Notify.show({ title = label, content = "Clipboard is not available. Copy it manually: " .. text, duration = 10 })
+end
+
+local function rejoin()
+	local player = Players.LocalPlayer
+	Notify.show({ title = "Rejoining", content = "Teleporting back to this server...", duration = 4 })
+	local ok, err = pcall(function()
+		if #Players:GetPlayers() <= 1 or game.JobId == "" then
+			TeleportService:Teleport(game.PlaceId, player)
+		else
+			TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, player)
+		end
+	end)
+	if not ok then
+		Notify.show({ title = "Rejoin failed", content = tostring(err), duration = 6 })
+	end
+end
+
+function Actions.defaults()
+	return {
+		{ title = "Rejoin", onClick = rejoin },
+		{
+			title = "Copy Job ID",
+			onClick = function()
+				copy("Job ID", game.JobId)
+			end,
+		},
+		{
+			title = "Copy Place ID",
+			onClick = function()
+				copy("Place ID", game.PlaceId)
+			end,
+		},
+	}
+end
+
+function Actions.create(tab, config)
+	local buttons = type(config.buttons) == "table" and #config.buttons > 0 and config.buttons or Actions.defaults()
+	local count = #buttons
+	local row = Ui.inst("Frame", {
+		Name = "Actions",
+		Size = UDim2.new(1, 0, 0, 38),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		LayoutOrder = tab:nextOrder(),
+		Parent = tab.page,
+	})
+	Ui.list(row, GAP, Enum.FillDirection.Horizontal)
+
+	for index, spec in ipairs(buttons) do
+		local width = UDim2.new(1 / count, -GAP * (count - 1) / count, 1, 0)
+		local button = Ui.accentButton(row, spec.title or "Run", width, index)
+		button.MouseButton1Click:Connect(function()
+			Ui.fire(spec.onClick)
+		end)
+	end
+
+	local player = Players.LocalPlayer
+	tab.window:connect(TeleportService.TeleportInitFailed, function(target, _result, message)
+		if target == player then
+			Notify.show({ title = "Rejoin failed", content = tostring(message), duration = 6 })
+		end
+	end)
+
+	return {
+		type = "actions",
+		set = function() end,
+		get = function() end,
+		encode = function() end,
+	}
+end
+
+return Actions
+end
+
 modules["Widgets/Button"] = function(require)
 local Ui = require("Ui")
-local Theme = require("Theme")
 
 local Button = {}
 
@@ -755,19 +1123,7 @@ function Button.create(tab, config)
 	Ui.title(row, config.title or "Button", 1)
 	Ui.note(row, config.description, 2)
 
-	local button = Ui.inst("TextButton", {
-		AutoButtonColor = false,
-		Text = config.buttonText or "Run",
-		Font = Enum.Font.GothamMedium,
-		TextSize = 14,
-		Size = UDim2.new(1, 0, 0, 32),
-		BorderSizePixel = 0,
-		LayoutOrder = 3,
-		Parent = row,
-	})
-	Ui.corner(button, 8)
-	Theme.paint(button, "BackgroundColor3", "accent")
-	Theme.paint(button, "TextColor3", "accentText")
+	local button = Ui.accentButton(row, config.buttonText or "Run", UDim2.new(1, 0, 0, 34), 3)
 	button.MouseButton1Click:Connect(function()
 		Ui.fire(config.onClick)
 	end)
@@ -917,6 +1273,7 @@ function Colorpicker.create(tab, config)
 		Parent = row,
 	})
 	Ui.corner(swatch, 6)
+	Ui.stroke(swatch, "glow", 0.5, 1)
 
 	local control = { type = "color" }
 
@@ -958,16 +1315,16 @@ function Colorpicker.create(tab, config)
 	local function open()
 		tab.window:closePopup()
 		local height = allowAlpha and 168 or 140
-		local x = swatch.AbsolutePosition.X - 180
-		local y = swatch.AbsolutePosition.Y + swatch.AbsoluteSize.Y + 6
+		local origin = tab.window.gui.AbsolutePosition
+		local x = swatch.AbsolutePosition.X - origin.X - 180
+		local y = swatch.AbsolutePosition.Y - origin.Y + swatch.AbsoluteSize.Y + 6
 		local panel = Ui.inst("Frame", {
 			Name = "ColorPanel",
 			Position = UDim2.fromOffset(math.max(8, x), y),
 			Size = UDim2.fromOffset(220, height),
 			BorderSizePixel = 0,
 		})
-		Theme.paint(panel, "BackgroundColor3", "bar")
-		Ui.corner(panel, 8)
+		Ui.panel(panel)
 		Ui.padding(panel, 10)
 		Ui.list(panel, 6)
 
@@ -1056,7 +1413,7 @@ function Dropdown.create(tab, config)
 		Parent = row,
 	})
 	Ui.corner(opener, 8)
-	Theme.paint(opener, "BackgroundColor3", "track")
+	Ui.field(opener)
 	local current = Ui.label({
 		Text = "",
 		TextSize = 13,
@@ -1141,11 +1498,13 @@ function Dropdown.create(tab, config)
 		local count = math.max(#values, 1)
 		local height = math.min(count, 8) * 30
 		local width = math.max(opener.AbsoluteSize.X, 180)
-		local x = opener.AbsolutePosition.X
-		local y = opener.AbsolutePosition.Y + opener.AbsoluteSize.Y + 6
-		local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+		local origin = tab.window.gui.AbsolutePosition
+		local top = opener.AbsolutePosition.Y - origin.Y
+		local x = opener.AbsolutePosition.X - origin.X
+		local y = top + opener.AbsoluteSize.Y + 6
+		local viewport = tab.window.gui.AbsoluteSize
 		if y + height > viewport.Y - 8 then
-			y = math.max(8, opener.AbsolutePosition.Y - height - 6)
+			y = math.max(8, top - height - 6)
 		end
 
 		local menu = Ui.inst("Frame", {
@@ -1154,8 +1513,7 @@ function Dropdown.create(tab, config)
 			Size = UDim2.fromOffset(width, height),
 			BorderSizePixel = 0,
 		})
-		Theme.paint(menu, "BackgroundColor3", "bar")
-		Ui.corner(menu, 8)
+		Ui.panel(menu)
 		local scroller = Ui.inst("ScrollingFrame", {
 			Size = UDim2.fromScale(1, 1),
 			BackgroundTransparency = 1,
@@ -1180,7 +1538,18 @@ function Dropdown.create(tab, config)
 				BorderSizePixel = 0,
 				Parent = scroller,
 			})
+			Ui.inst("UIPadding", {
+				PaddingLeft = UDim.new(0, 6),
+				Parent = item,
+			})
 			Theme.paint(item, "TextColor3", selected and "accent" or "text")
+			Theme.paint(item, "BackgroundColor3", "accent")
+			item.MouseEnter:Connect(function()
+				Ui.tween(item, { BackgroundTransparency = 0.85 }, 0.1)
+			end)
+			item.MouseLeave:Connect(function()
+				Ui.tween(item, { BackgroundTransparency = 1 }, 0.1)
+			end)
 			item.MouseButton1Click:Connect(onPick)
 		end
 
@@ -1215,6 +1584,142 @@ end
 return Dropdown
 end
 
+modules["Widgets/GameInfo"] = function(require)
+local Ui = require("Ui")
+local Theme = require("Theme")
+local Games = require("Games")
+local MarketplaceService = game:GetService("MarketplaceService")
+local Players = game:GetService("Players")
+
+local GameInfo = {}
+
+local COVER = 92
+
+local function clean(text)
+	text = string.gsub(tostring(text or ""), "%s+", " ")
+	if #text > 240 then
+		text = string.sub(text, 1, 237) .. "..."
+	end
+	return text
+end
+
+function GameInfo.create(tab, config)
+	local supported = Games.supported(config.supportedGames)
+	local row = Ui.line(tab.page, tab:nextOrder(), COVER + 24)
+
+	local cover = Ui.inst("ImageLabel", {
+		Name = "Cover",
+		Position = UDim2.fromOffset(12, 12),
+		Size = UDim2.fromOffset(COVER, COVER),
+		BorderSizePixel = 0,
+		ScaleType = Enum.ScaleType.Crop,
+		Image = "rbxthumb://type=GameIcon&id=" .. game.GameId .. "&w=150&h=150",
+		Parent = row,
+	})
+	Theme.paint(cover, "BackgroundColor3", "window")
+	Ui.corner(cover, 10)
+	Ui.stroke(cover, "glow", 0.3, 1)
+
+	local badge = Ui.label({
+		Name = "Badge",
+		Text = supported and "Supported" or "Not supported",
+		Font = Enum.Font.GothamBold,
+		TextSize = 11,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -12, 0, 12),
+		Size = UDim2.fromOffset(0, 22),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 0.82,
+		Parent = row,
+	})
+	local tone = supported and "success" or "warning"
+	Theme.paint(badge, "BackgroundColor3", tone)
+	Theme.paint(badge, "TextColor3", tone)
+	Ui.corner(badge, 11)
+	Ui.stroke(badge, tone, 0.35, 1)
+	Ui.inst("UIPadding", {
+		PaddingLeft = UDim.new(0, 10),
+		PaddingRight = UDim.new(0, 10),
+		Parent = badge,
+	})
+
+	local left = 12 + COVER + 14
+	local name = Ui.label({
+		Text = "Loading...",
+		Font = Enum.Font.GothamBold,
+		TextSize = 16,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Position = UDim2.fromOffset(left, 12),
+		Size = UDim2.new(1, -(left + 122), 0, 22),
+		Parent = row,
+	})
+	Theme.paint(name, "TextColor3", "text")
+	local description = Ui.label({
+		Text = "",
+		TextSize = 12,
+		TextWrapped = true,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		Position = UDim2.fromOffset(left, 38),
+		Size = UDim2.new(1, -(left + 12), 0, 46),
+		Parent = row,
+	})
+	Theme.paint(description, "TextColor3", "muted")
+	local info = Ui.label({
+		Text = "",
+		TextSize = 11,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Position = UDim2.fromOffset(left, COVER - 4),
+		Size = UDim2.new(1, -(left + 12), 0, 14),
+		Parent = row,
+	})
+	Theme.paint(info, "TextColor3", "accent")
+
+	local function refreshInfo()
+		local count = #Players:GetPlayers()
+		local ok, max = pcall(function()
+			return Players.MaxPlayers
+		end)
+		local players = (ok and type(max) == "number" and max > 0) and (count .. "/" .. max) or tostring(count)
+		info.Text = string.format("PlaceId %d  ·  %s players", game.PlaceId, players)
+	end
+	refreshInfo()
+	tab.window:connect(Players.PlayerAdded, refreshInfo)
+	tab.window:connect(Players.PlayerRemoving, function()
+		task.defer(refreshInfo)
+	end)
+
+	task.spawn(function()
+		local ok, product = pcall(function()
+			return MarketplaceService:GetProductInfo(game.PlaceId)
+		end)
+		if not row.Parent then
+			return
+		end
+		if ok and type(product) == "table" and type(product.Name) == "string" and product.Name ~= "" then
+			name.Text = product.Name
+			description.Text = clean(product.Description)
+		else
+			name.Text = tostring(game.PlaceId)
+			description.Text = ""
+		end
+	end)
+
+	return {
+		type = "gameInfo",
+		supported = supported,
+		set = function() end,
+		get = function()
+			return supported
+		end,
+		encode = function() end,
+	}
+end
+
+return GameInfo
+end
+
 modules["Widgets/Input"] = function(require)
 local Ui = require("Ui")
 local Theme = require("Theme")
@@ -1239,7 +1744,7 @@ function Input.create(tab, config)
 	})
 	Ui.corner(box, 8)
 	Ui.padding(box, 8)
-	Theme.paint(box, "BackgroundColor3", "track")
+	Ui.field(box)
 	Theme.paint(box, "TextColor3", "text")
 	Theme.paint(box, "PlaceholderColor3", "muted")
 
@@ -1331,7 +1836,7 @@ function Keybind.create(tab, config)
 		Parent = row,
 	})
 	Ui.corner(chip, 8)
-	Theme.paint(chip, "BackgroundColor3", "track")
+	Ui.field(chip)
 	Theme.paint(chip, "TextColor3", "text")
 
 	local key = asKey(config.default)
@@ -1465,6 +1970,122 @@ end
 return Paragraph
 end
 
+modules["Widgets/Profile"] = function(require)
+local Ui = require("Ui")
+local Theme = require("Theme")
+local Players = game:GetService("Players")
+
+local Profile = {}
+
+local AVATAR = 64
+
+function Profile.create(tab, config)
+	local player = Players.LocalPlayer
+	local row = Ui.inst("Frame", {
+		Name = "Profile",
+		Size = UDim2.new(1, 0, 0, 92),
+		BorderSizePixel = 0,
+		LayoutOrder = tab:nextOrder(),
+		Parent = tab.page,
+	})
+	Ui.glass(row, "row", 0.2, 0.5)
+	Ui.corner(row, 10)
+
+	local tint = Ui.inst("Frame", {
+		Name = "Tint",
+		Size = UDim2.fromScale(1, 1),
+		BorderSizePixel = 0,
+		ZIndex = 0,
+		Parent = row,
+	})
+	Ui.corner(tint, 10)
+	Theme.paint(tint, "BackgroundColor3", "accent")
+	Ui.inst("UIGradient", {
+		Transparency = NumberSequence.new(1, 0.72),
+		Parent = tint,
+	})
+
+	local halo = Ui.inst("Frame", {
+		Name = "Halo",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 14, 0.5, 0),
+		Size = UDim2.fromOffset(AVATAR, AVATAR),
+		BorderSizePixel = 0,
+		Parent = row,
+	})
+	Theme.paint(halo, "BackgroundColor3", "window")
+	Ui.inst("UICorner", {
+		CornerRadius = UDim.new(0.5, 0),
+		Parent = halo,
+	})
+	Ui.stroke(halo, "glow", 0.1, 2)
+	local ring = Ui.inst("Frame", {
+		Name = "Ring",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.new(1, 8, 1, 8),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Parent = halo,
+	})
+	Ui.inst("UICorner", {
+		CornerRadius = UDim.new(0.5, 0),
+		Parent = ring,
+	})
+	Ui.stroke(ring, "glow", 0.75, 3)
+	local headshot = Ui.inst("ImageLabel", {
+		Name = "Headshot",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Image = player and ("rbxthumb://type=AvatarHeadShot&id=" .. player.UserId .. "&w=150&h=150") or "",
+		Parent = halo,
+	})
+	Ui.inst("UICorner", {
+		CornerRadius = UDim.new(0.5, 0),
+		Parent = headshot,
+	})
+
+	local left = 14 + AVATAR + 16
+	local name = Ui.label({
+		Text = player and player.DisplayName or "Player",
+		Font = Enum.Font.GothamBold,
+		TextSize = 18,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Position = UDim2.fromOffset(left, 16),
+		Size = UDim2.new(1, -(left + 12), 0, 22),
+		Parent = row,
+	})
+	Theme.paint(name, "TextColor3", "text")
+	local handle = Ui.label({
+		Text = player and ("@" .. player.Name) or "",
+		TextSize = 13,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Position = UDim2.fromOffset(left, 40),
+		Size = UDim2.new(1, -(left + 12), 0, 16),
+		Parent = row,
+	})
+	Theme.paint(handle, "TextColor3", "muted")
+	local meta = Ui.label({
+		Text = player and string.format("UserId %d  ·  %d days old", player.UserId, player.AccountAge) or "",
+		TextSize = 11,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Position = UDim2.fromOffset(left, 60),
+		Size = UDim2.new(1, -(left + 12), 0, 14),
+		Parent = row,
+	})
+	Theme.paint(meta, "TextColor3", "accent")
+
+	return {
+		type = "profile",
+		set = function() end,
+		get = function() end,
+		encode = function() end,
+	}
+end
+
+return Profile
+end
+
 modules["Widgets/Slider"] = function(require)
 local Ui = require("Ui")
 local Theme = require("Theme")
@@ -1534,11 +2155,12 @@ function Slider.create(tab, config)
 	Theme.paint(track, "BackgroundColor3", "track")
 	local fill = Ui.inst("Frame", {
 		Size = UDim2.new(0, 0, 1, 0),
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		BorderSizePixel = 0,
 		Parent = track,
 	})
 	Ui.corner(fill, 4)
-	Theme.paint(fill, "BackgroundColor3", "accent")
+	Ui.gradient(fill, "accent2", "accent", 0)
 	local knob = Ui.inst("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.new(0, 0, 0.5, 0),
@@ -1548,6 +2170,7 @@ function Slider.create(tab, config)
 	})
 	Ui.corner(knob, 7)
 	Theme.paint(knob, "BackgroundColor3", "text")
+	Ui.stroke(knob, "glow", 0.3, 2)
 
 	local value = math.clamp(config.default or min, min, max)
 	local control = { type = "slider" }
@@ -1628,6 +2251,139 @@ end
 return Slider
 end
 
+modules["Widgets/Stats"] = function(require)
+local Ui = require("Ui")
+local Theme = require("Theme")
+local Games = require("Games")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local StatsService = game:GetService("Stats")
+
+local Stats = {}
+
+local CELL_HEIGHT = 64
+local GAP = 8
+local MIN_WIDE_CELL = 100
+
+local function clock(seconds)
+	seconds = math.floor(seconds)
+	return string.format("%02d:%02d:%02d", seconds // 3600, (seconds // 60) % 60, seconds % 60)
+end
+
+local function readPing(player)
+	local ok, seconds = pcall(function()
+		return player:GetNetworkPing()
+	end)
+	if ok and type(seconds) == "number" and seconds > 0 then
+		return seconds * 1000
+	end
+	local found, ms = pcall(function()
+		return StatsService.Network.ServerStatsItem["Data Ping"]:GetValue()
+	end)
+	if found and type(ms) == "number" then
+		return ms
+	end
+	return nil
+end
+
+function Stats.create(tab, config)
+	local window = tab.window
+	local player = Players.LocalPlayer
+	local holder = Ui.inst("Frame", {
+		Name = "Stats",
+		Size = UDim2.new(1, 0, 0, CELL_HEIGHT),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		LayoutOrder = tab:nextOrder(),
+		Parent = tab.page,
+	})
+	local grid = Ui.inst("UIGridLayout", {
+		CellPadding = UDim2.fromOffset(GAP, GAP),
+		CellSize = UDim2.new(0.25, -GAP * 3 / 4, 0, CELL_HEIGHT),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = holder,
+	})
+
+	local function layout()
+		local columns = holder.AbsoluteSize.X >= (MIN_WIDE_CELL * 4) + (GAP * 3) and 4 or 2
+		local rows = math.ceil(4 / columns)
+		grid.CellSize = UDim2.new(1 / columns, -GAP * (columns - 1) / columns, 0, CELL_HEIGHT)
+		holder.Size = UDim2.new(1, 0, 0, (rows * CELL_HEIGHT) + ((rows - 1) * GAP))
+	end
+	holder:GetPropertyChangedSignal("AbsoluteSize"):Connect(layout)
+
+	local function card(order, title)
+		local cell = Ui.inst("Frame", {
+			Name = title,
+			BorderSizePixel = 0,
+			LayoutOrder = order,
+			Parent = holder,
+		})
+		Ui.glass(cell, "row", 0.3, 0.7)
+		Ui.corner(cell, 10)
+		local name = Ui.label({
+			Text = string.upper(title),
+			Font = Enum.Font.GothamMedium,
+			TextSize = 11,
+			Position = UDim2.fromOffset(12, 10),
+			Size = UDim2.new(1, -24, 0, 14),
+			Parent = cell,
+		})
+		Theme.paint(name, "TextColor3", "muted")
+		local value = Ui.label({
+			Text = "--",
+			Font = Enum.Font.GothamBold,
+			TextSize = 20,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			Position = UDim2.fromOffset(12, 28),
+			Size = UDim2.new(1, -24, 0, 26),
+			Parent = cell,
+		})
+		Theme.paint(value, "TextColor3", "accent")
+		return value
+	end
+
+	local maps = card(1, "Maps")
+	local session = card(2, "Session")
+	local fps = card(3, "FPS")
+	local ping = card(4, "Ping")
+	layout()
+
+	local control = { type = "stats" }
+	function control:set(count)
+		maps.Text = tostring(tonumber(count) or 0)
+	end
+	function control:get()
+		return tonumber(maps.Text)
+	end
+	function control:encode() end
+	control:set(config.maps or Games.count(config.supportedGames))
+
+	local frames = 0
+	window:connect(RunService.RenderStepped, function()
+		frames += 1
+	end)
+	session.Text = clock(os.clock() - window.startedAt)
+	task.spawn(function()
+		local last = os.clock()
+		while window.session.alive and holder.Parent do
+			task.wait(0.5)
+			local now = os.clock()
+			fps.Text = tostring(math.floor((frames / math.max(now - last, 1e-3)) + 0.5))
+			frames = 0
+			last = now
+			session.Text = clock(now - window.startedAt)
+			local ms = player and readPing(player)
+			ping.Text = ms and (tostring(math.floor(ms + 0.5)) .. " ms") or "--"
+		end
+	end)
+
+	return control
+end
+
+return Stats
+end
+
 modules["Widgets/Toggle"] = function(require)
 local Ui = require("Ui")
 local Theme = require("Theme")
@@ -1656,7 +2412,8 @@ function Toggle.create(tab, config)
 		Parent = row,
 	})
 	Ui.corner(track, 11)
-	Theme.paint(track, "BackgroundColor3", "track")
+	local shine = Ui.gradient(track, "accent", "accent2", 0)
+	local stroke = Ui.stroke(track, "glow", 0.7, 1)
 
 	local knob = Ui.inst("Frame", {
 		Size = UDim2.fromOffset(16, 16),
@@ -1670,8 +2427,11 @@ function Toggle.create(tab, config)
 	local control = { type = "toggle" }
 
 	local function paint()
-		knob.Position = UDim2.fromOffset(enabled and 23 or 3, 3)
-		knob.BackgroundColor3 = enabled and Theme.color("accent") or Theme.color("muted")
+		shine.Enabled = enabled
+		track.BackgroundColor3 = enabled and Color3.new(1, 1, 1) or Theme.color("track")
+		stroke.Transparency = enabled and 0.3 or 0.7
+		knob.BackgroundColor3 = enabled and Theme.color("accentText") or Theme.color("muted")
+		Ui.tween(knob, { Position = UDim2.fromOffset(enabled and 23 or 3, 3) }, 0.14)
 	end
 
 	function control:get()
@@ -1712,9 +2472,15 @@ local Dialog = require("Dialog")
 local Tab = require("Tab")
 local Theme = require("Theme")
 local Ui = require("Ui")
+local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 
 local Window = {}
+
+local RAIL_WIDTH = 156
+local BAR_HEIGHT = 56
+local PORTRAIT_HEIGHT = 100
+local AVATAR_HEIGHT = PORTRAIT_HEIGHT + 54
 
 local function asKey(value)
 	if typeof(value) == "EnumItem" and value.EnumType == Enum.KeyCode then
@@ -1726,40 +2492,197 @@ local function asKey(value)
 	return Enum.KeyCode.LeftControl
 end
 
+local function asVector(value, fallback)
+	if typeof(value) == "Vector2" then
+		return value
+	end
+	if typeof(value) == "UDim2" then
+		return Vector2.new(value.X.Offset, value.Y.Offset)
+	end
+	return fallback
+end
+
+local function viewportSize()
+	local camera = workspace.CurrentCamera
+	return camera and camera.ViewportSize or Vector2.new(1280, 720)
+end
+
+local function isPress(input)
+	return input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch
+end
+
+local function isMove(input)
+	return input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch
+end
+
+local function startSize(config, minSize)
+	local size = config.size or UDim2.fromOffset(680, 500)
+	if size.X.Scale ~= 0 or size.Y.Scale ~= 0 then
+		return size
+	end
+	local viewport = viewportSize()
+	if viewport.X < 200 or viewport.Y < 200 then
+		return size
+	end
+	local width = math.min(size.X.Offset, math.max(minSize.X, viewport.X - 24))
+	local height = math.min(size.Y.Offset, math.max(minSize.Y, viewport.Y - 24))
+	return UDim2.fromOffset(width, height)
+end
+
+local function avatarCard(sidebar)
+	local player = Players.LocalPlayer
+	local card = Ui.inst("Frame", {
+		Name = "Avatar",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 8, 1, -8),
+		Size = UDim2.new(1, -16, 0, AVATAR_HEIGHT),
+		BorderSizePixel = 0,
+		Parent = sidebar,
+	})
+	Ui.glass(card, "row", 0.35, 0.7)
+	Ui.corner(card, 10)
+	Ui.padding(card, 8)
+
+	local frame = Ui.inst("Frame", {
+		Name = "Portrait",
+		Size = UDim2.new(1, 0, 0, PORTRAIT_HEIGHT),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.2,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		Parent = card,
+	})
+	Ui.corner(frame, 8)
+	Ui.gradient(frame, "row", "window", 90)
+	Ui.stroke(frame, "glow", 0.2, 1)
+	Ui.inst("ImageLabel", {
+		Name = "Image",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.55),
+		Size = UDim2.fromScale(1.3, 1.3),
+		SizeConstraint = Enum.SizeConstraint.RelativeYY,
+		BackgroundTransparency = 1,
+		ScaleType = Enum.ScaleType.Fit,
+		Image = player and ("rbxthumb://type=Avatar&id=" .. player.UserId .. "&w=150&h=150") or "",
+		Parent = frame,
+	})
+
+	local name = Ui.label({
+		Text = player and player.DisplayName or "Player",
+		Font = Enum.Font.GothamBold,
+		TextSize = 13,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Position = UDim2.fromOffset(0, PORTRAIT_HEIGHT + 6),
+		Size = UDim2.new(1, 0, 0, 16),
+		Parent = card,
+	})
+	Theme.paint(name, "TextColor3", "text")
+	local handle = Ui.label({
+		Text = player and ("@" .. player.Name) or "",
+		TextSize = 11,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Position = UDim2.fromOffset(0, PORTRAIT_HEIGHT + 22),
+		Size = UDim2.new(1, 0, 0, 14),
+		Parent = card,
+	})
+	Theme.paint(handle, "TextColor3", "muted")
+	return card
+end
+
+local function grip(parent)
+	local button = Ui.inst("TextButton", {
+		Name = "Resize",
+		AutoButtonColor = false,
+		Text = "",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -3, 1, -3),
+		Size = UDim2.fromOffset(16, 16),
+		ZIndex = 5,
+		Parent = parent,
+	})
+	for _, spot in ipairs({ { 12, 4 }, { 8, 8 }, { 12, 8 }, { 4, 12 }, { 8, 12 }, { 12, 12 } }) do
+		local dot = Ui.inst("Frame", {
+			Position = UDim2.fromOffset(spot[1] - 1, spot[2] - 1),
+			Size = UDim2.fromOffset(2, 2),
+			BackgroundTransparency = 0.3,
+			BorderSizePixel = 0,
+			Parent = button,
+		})
+		Theme.paint(dot, "BackgroundColor3", "glow")
+	end
+	return button
+end
+
 function Window.create(config)
 	config = config or {}
 	if config.theme then
 		Theme.set(config.theme)
 	end
+	local minSize = asVector(config.minSize, Vector2.new(460, 320))
 
 	local gui = Ui.screen("TheX", 100000)
-	local frame = Ui.inst("Frame", {
-		Name = "Window",
+	local shell = Ui.inst("Frame", {
+		Name = "Shell",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = config.size or UDim2.fromOffset(580, 460),
+		Size = startSize(config, minSize),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Parent = gui,
+	})
+	for index, layer in ipairs({ { 2, 0.6 }, { 5, 0.82 }, { 10, 0.92 } }) do
+		local glow = Ui.inst("Frame", {
+			Name = "Glow" .. index,
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			ZIndex = 0,
+			Parent = shell,
+		})
+		Ui.corner(glow, 12)
+		Ui.stroke(glow, "glow", layer[2], layer[1])
+	end
+
+	local frame = Ui.inst("Frame", {
+		Name = "Window",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.06,
 		BorderSizePixel = 0,
 		ClipsDescendants = true,
 		Active = true,
-		Parent = gui,
+		ZIndex = 1,
+		Parent = shell,
 	})
-	Theme.paint(frame, "BackgroundColor3", "window")
+	Ui.gradient(frame, "bar", "window", 90)
 	Ui.corner(frame, 12)
-	local stroke = Ui.inst("UIStroke", {
-		Thickness = 1,
-		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-		Parent = frame,
-	})
-	Theme.paint(stroke, "Color", "stroke")
+	Ui.stroke(frame, "glow", 0.35, 1)
 
 	local bar = Ui.inst("Frame", {
 		Name = "TitleBar",
-		Size = UDim2.new(1, 0, 0, 56),
+		Size = UDim2.new(1, 0, 0, BAR_HEIGHT),
+		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Active = true,
 		Parent = frame,
 	})
-	Theme.paint(bar, "BackgroundColor3", "bar")
+	local divider = Ui.inst("Frame", {
+		Name = "Divider",
+		Position = UDim2.new(0, 0, 1, -1),
+		Size = UDim2.new(1, 0, 0, 1),
+		BorderSizePixel = 0,
+		Parent = bar,
+	})
+	Theme.paint(divider, "BackgroundColor3", "glow")
+	Ui.inst("UIGradient", {
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.85),
+			NumberSequenceKeypoint.new(0.3, 0.35),
+			NumberSequenceKeypoint.new(1, 0.9),
+		}),
+		Parent = divider,
+	})
 
 	local drag = Ui.inst("TextButton", {
 		Name = "Drag",
@@ -1772,7 +2695,7 @@ function Window.create(config)
 
 	local title = Ui.label({
 		Text = config.title or "TheX",
-		Font = Enum.Font.GothamMedium,
+		Font = Enum.Font.GothamBold,
 		TextSize = 18,
 		Position = UDim2.fromOffset(16, 8),
 		Size = UDim2.new(1, -72, 0, 22),
@@ -1786,7 +2709,7 @@ function Window.create(config)
 		Size = UDim2.new(1, -72, 0, 16),
 		Parent = bar,
 	})
-	Theme.paint(subtitle, "TextColor3", "muted")
+	Theme.paint(subtitle, "TextColor3", "accent")
 
 	local close = Ui.inst("TextButton", {
 		Name = "Close",
@@ -1797,54 +2720,96 @@ function Window.create(config)
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -12, 0.5, 0),
 		Size = UDim2.fromOffset(28, 28),
+		BackgroundTransparency = 0.8,
 		BorderSizePixel = 0,
 		Parent = bar,
 	})
 	Ui.corner(close, 8)
 	Theme.paint(close, "BackgroundColor3", "danger")
-	Theme.paint(close, "TextColor3", "accentText")
+	Theme.paint(close, "TextColor3", "text")
+	local closeStroke = Ui.stroke(close, "danger", 0.6, 1)
+	close.MouseEnter:Connect(function()
+		Ui.tween(close, { BackgroundTransparency = 0.1 }, 0.12)
+		Ui.tween(closeStroke, { Transparency = 0.2 }, 0.12)
+	end)
+	close.MouseLeave:Connect(function()
+		Ui.tween(close, { BackgroundTransparency = 0.8 }, 0.12)
+		Ui.tween(closeStroke, { Transparency = 0.6 }, 0.12)
+	end)
 
 	local body = Ui.inst("Frame", {
 		Name = "Body",
-		Position = UDim2.fromOffset(0, 56),
-		Size = UDim2.new(1, 0, 1, -56),
+		Position = UDim2.fromOffset(0, BAR_HEIGHT),
+		Size = UDim2.new(1, 0, 1, -BAR_HEIGHT),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Parent = frame,
 	})
-	local rail = Ui.inst("Frame", {
-		Name = "Tabs",
-		Size = UDim2.new(0, 156, 1, 0),
+	local sidebar = Ui.inst("Frame", {
+		Name = "Sidebar",
+		Size = UDim2.new(0, RAIL_WIDTH, 1, 0),
+		BackgroundTransparency = 0.5,
 		BorderSizePixel = 0,
 		Parent = body,
 	})
-	Theme.paint(rail, "BackgroundColor3", "rail")
+	Theme.paint(sidebar, "BackgroundColor3", "rail")
+	local edge = Ui.inst("Frame", {
+		Name = "Edge",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.new(0, 1, 1, 0),
+		BackgroundTransparency = 0.8,
+		BorderSizePixel = 0,
+		Parent = sidebar,
+	})
+	Theme.paint(edge, "BackgroundColor3", "glow")
+
+	local showAvatar = config.showAvatar ~= false
+	local rail = Ui.inst("ScrollingFrame", {
+		Name = "Tabs",
+		Size = UDim2.new(1, 0, 1, showAvatar and -(AVATAR_HEIGHT + 16) or 0),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 2,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		Parent = sidebar,
+	})
+	Theme.paint(rail, "ScrollBarImageColor3", "accent")
 	local railLayout = Ui.list(rail, 4)
 	railLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	Ui.inst("UIPadding", {
-		PaddingTop = UDim.new(0, 8),
+		PaddingTop = UDim.new(0, 10),
 		PaddingBottom = UDim.new(0, 8),
 		Parent = rail,
 	})
+	if showAvatar then
+		avatarCard(sidebar)
+	end
 
 	local pages = Ui.inst("Frame", {
 		Name = "Pages",
-		Position = UDim2.fromOffset(156, 0),
-		Size = UDim2.new(1, -156, 1, 0),
+		Position = UDim2.fromOffset(RAIL_WIDTH, 0),
+		Size = UDim2.new(1, -RAIL_WIDTH, 1, 0),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		ClipsDescendants = true,
 		Parent = body,
 	})
+	local resize = grip(frame)
 
 	local window = {
 		gui = gui,
+		shell = shell,
 		frame = frame,
+		sidebar = sidebar,
 		rail = rail,
 		pages = pages,
 		tabs = {},
 		controls = {},
 		dead = false,
+		startedAt = os.clock(),
 		session = {
 			alive = true,
 			capturing = false,
@@ -1954,32 +2919,54 @@ function Window.create(config)
 
 	local toggleKey = asKey(config.toggleKey)
 	local dragging = false
-	local dragStart
+	local resizing = false
+	local pressStart
 	local startPos
+	local startDims
 
 	drag.InputBegan:Connect(function(input)
-		if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
+		if not isPress(input) then
 			return
 		end
 		dragging = true
-		dragStart = input.Position
-		startPos = frame.Position
+		pressStart = input.Position
+		startPos = shell.Position
+	end)
+	resize.InputBegan:Connect(function(input)
+		if not isPress(input) then
+			return
+		end
+		local topLeft = shell.AbsolutePosition - gui.AbsolutePosition
+		shell.AnchorPoint = Vector2.zero
+		shell.Position = UDim2.fromOffset(topLeft.X, topLeft.Y)
+		resizing = true
+		pressStart = input.Position
+		startDims = shell.AbsoluteSize
 	end)
 	window:connect(UserInputService.InputEnded, function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		if isPress(input) then
 			dragging = false
+			resizing = false
 		end
 	end)
 	window:connect(UserInputService.InputChanged, function(input)
-		if not dragging or window.dead then
-			dragging = false
+		if window.dead or not isMove(input) then
 			return
 		end
-		if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then
-			return
+		if resizing then
+			local delta = input.Position - pressStart
+			local screen = gui.AbsoluteSize
+			local topLeft = shell.AbsolutePosition - gui.AbsolutePosition
+			local maxWidth = math.max(minSize.X, screen.X - topLeft.X)
+			local maxHeight = math.max(minSize.Y, screen.Y - topLeft.Y)
+			shell.Size = UDim2.fromOffset(
+				math.clamp(startDims.X + delta.X, minSize.X, maxWidth),
+				math.clamp(startDims.Y + delta.Y, minSize.Y, maxHeight)
+			)
+		elseif dragging then
+			local delta = input.Position - pressStart
+			shell.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
 		end
-		local delta = input.Position - dragStart
-		frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
 	end)
 
 	window:connect(UserInputService.InputBegan, function(input)
@@ -1990,7 +2977,7 @@ function Window.create(config)
 			return
 		end
 		if input.KeyCode == toggleKey then
-			frame.Visible = not frame.Visible
+			shell.Visible = not shell.Visible
 		end
 	end)
 
