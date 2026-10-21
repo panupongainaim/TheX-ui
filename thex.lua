@@ -948,6 +948,10 @@ function Theme.paint(instance, property, token)
 	end)
 end
 
+function Theme.bind(instance, apply)
+	bind(instance, apply)
+end
+
 function Theme.gradient(gradient, from, to)
 	bind(gradient, function()
 		gradient.Color = ColorSequence.new(Theme.color(from), Theme.color(to))
@@ -2300,6 +2304,21 @@ function Dropdown.create(tab, config)
 	Theme.paint(marker, "TextColor3", "muted")
 
 	local control = { type = "dropdown" }
+	local rows = {}
+
+	local function rowSelected(name)
+		return (multi and chosen[name] == true) or (not multi and name == single)
+	end
+
+	local function refreshRows()
+		for name, row in pairs(rows) do
+			if row.item.Parent then
+				row.setSelected(rowSelected(name))
+			else
+				rows[name] = nil
+			end
+		end
+	end
 
 	local function selectedList()
 		local list = {}
@@ -2353,6 +2372,7 @@ function Dropdown.create(tab, config)
 			single = tostring(value)
 		end
 		current.Text = summary()
+		refreshRows()
 		if silent ~= true then
 			emit()
 		end
@@ -2360,6 +2380,7 @@ function Dropdown.create(tab, config)
 
 	local function open()
 		tab.window:closePopup()
+		rows = {}
 		local count = math.max(#values, 1)
 		local height = math.min(count, 8) * 30
 		local width = math.max(opener.AbsoluteSize.X, 180)
@@ -2407,7 +2428,12 @@ function Dropdown.create(tab, config)
 				PaddingLeft = UDim.new(0, 6),
 				Parent = item,
 			})
-			Theme.paint(item, "TextColor3", selected and "accent" or "text")
+			local picked = selected
+			local function apply()
+				item.Text = (picked and "✓  " or "    ") .. text
+				item.TextColor3 = Theme.color(picked and "accent" or "text")
+			end
+			Theme.bind(item, apply)
 			Theme.paint(item, "BackgroundColor3", "accent")
 			item.MouseEnter:Connect(function()
 				Ui.tween(item, { BackgroundTransparency = 0.85 }, 0.1)
@@ -2415,20 +2441,28 @@ function Dropdown.create(tab, config)
 			item.MouseLeave:Connect(function()
 				Ui.tween(item, { BackgroundTransparency = 1 }, 0.1)
 			end)
-			item.MouseButton1Click:Connect(onPick)
+			local function setSelected(nextSelected)
+				picked = nextSelected == true
+				if item.Parent then
+					apply()
+				end
+			end
+			item.MouseButton1Click:Connect(function()
+				onPick(setSelected)
+			end)
+			return item, setSelected
 		end
 
 		if #values == 0 then
 			addItem("Empty", false, function() end)
 		end
 		for _, name in ipairs(values) do
-			local picked = multi and chosen[name] == true or (not multi and name == single)
-			addItem(name, picked, function()
+			local item, setSelected = addItem(name, rowSelected(name), function(setSelected)
 				if multi then
 					chosen[name] = not chosen[name]
 					current.Text = summary()
+					setSelected(chosen[name] == true)
 					emit()
-					open()
 				else
 					single = name
 					current.Text = summary()
@@ -2436,7 +2470,11 @@ function Dropdown.create(tab, config)
 					emit()
 				end
 			end)
+			rows[name] = { item = item, setSelected = setSelected }
 		end
+		menu.Destroying:Connect(function()
+			rows = {}
+		end)
 		tab.window:showPopup(menu)
 	end
 
