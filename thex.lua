@@ -700,10 +700,23 @@ local widgets = {
 	actions = Actions,
 }
 
-local function container(window, page)
+-- Dashboard widgets draw their own panels, so they are only offered outside grouped sections.
+local standaloneOnly = {
+	profile = true,
+	stats = true,
+	gameInfo = true,
+	currentMap = true,
+	systemStatus = true,
+	brand = true,
+	games = true,
+	actions = true,
+}
+
+local function container(window, page, style)
 	local target = {
 		window = window,
 		page = page,
+		style = style,
 		_order = 0,
 	}
 	function target:nextOrder()
@@ -711,8 +724,24 @@ local function container(window, page)
 		return self._order
 	end
 	for name, widget in pairs(widgets) do
-		target[name] = function(self, options)
-			return widget.create(self, options or {})
+		if style ~= "group" or not standaloneOnly[name] then
+			target[name] = function(self, options)
+				return widget.create(self, options or {})
+			end
+		end
+	end
+
+	if style ~= "group" then
+		-- One shared card for a set of related controls: section({ title = "Roll Automation" }).
+		function target:section(options)
+			options = options or {}
+			local _, content, label = Ui.group(self.page, self:nextOrder(), options.title)
+			local group = container(window, content, "group")
+			function group:setTitle(text)
+				label.Text = string.upper(tostring(text or ""))
+				label.Visible = label.Text ~= ""
+			end
+			return group
 		end
 	end
 
@@ -769,6 +798,9 @@ local function container(window, page)
 		layout()
 
 		return container(window, leftFrame), container(window, rightFrame)
+	end
+	if style == "group" then
+		target.columns = nil
 	end
 
 	return target
@@ -928,6 +960,12 @@ local Theme = {
 			purple = Color3.fromRGB(168, 102, 255),
 			teal = Color3.fromRGB(32, 214, 196),
 			premium = Color3.fromRGB(186, 128, 255),
+			groupBg = Color3.fromRGB(20, 35, 66),
+			groupLine = Color3.fromRGB(38, 55, 92),
+			groupHeader = Color3.fromRGB(111, 143, 208),
+			switchOn = Color3.fromRGB(30, 136, 255),
+			switchOff = Color3.fromRGB(58, 69, 96),
+			switchKnob = Color3.fromRGB(255, 255, 255),
 		},
 		Light = {
 			window = Color3.fromRGB(246, 242, 234),
@@ -949,6 +987,12 @@ local Theme = {
 			purple = Color3.fromRGB(122, 74, 196),
 			teal = Color3.fromRGB(22, 138, 126),
 			premium = Color3.fromRGB(140, 86, 200),
+			groupBg = Color3.fromRGB(255, 252, 246),
+			groupLine = Color3.fromRGB(226, 216, 200),
+			groupHeader = Color3.fromRGB(150, 120, 88),
+			switchOn = Color3.fromRGB(176, 98, 32),
+			switchOff = Color3.fromRGB(196, 186, 170),
+			switchKnob = Color3.fromRGB(255, 252, 246),
 		},
 	},
 }
@@ -1048,6 +1092,12 @@ Ui.metrics = {
 	button = Ui.pick(30, 38),
 	cardRadius = 10,
 	controlRadius = 8,
+	-- Grouped sections: one shared card, flat rows, thin separators between rows.
+	groupRadius = 10,
+	groupPad = 12,
+	groupHeader = 24,
+	switchWidth = Ui.pick(36, 44),
+	switchHeight = Ui.pick(20, 24),
 }
 
 function Ui.inst(className, props)
@@ -1563,6 +1613,179 @@ function Ui.line(parent, order, height)
 	return row
 end
 
+-- Grouped section card. Returns the card, the content frame that holds the rows and the header label.
+function Ui.group(parent, order, title)
+	local pad = Ui.metrics.groupPad
+	local card = Ui.inst("Frame", {
+		Name = "Group",
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BorderSizePixel = 0,
+		LayoutOrder = order,
+		Parent = parent,
+	})
+	Theme.paint(card, "BackgroundColor3", "groupBg")
+	Ui.corner(card, Ui.metrics.groupRadius)
+	Ui.list(card, 0)
+
+	local hasTitle = type(title) == "string" and title ~= ""
+	local header = Ui.inst("Frame", {
+		Name = "Header",
+		Size = UDim2.new(1, 0, 0, hasTitle and Ui.metrics.groupHeader or 4),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		LayoutOrder = 1,
+		Parent = card,
+	})
+	local label = Ui.label({
+		Name = "Title",
+		Text = hasTitle and string.upper(title) or "",
+		Font = Enum.Font.GothamBold,
+		TextSize = 10,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		Position = UDim2.fromOffset(pad, 10),
+		Size = UDim2.new(1, -(pad * 2), 0, 12),
+		Visible = hasTitle,
+		Parent = header,
+	})
+	Theme.paint(label, "TextColor3", "groupHeader")
+
+	local content = Ui.inst("Frame", {
+		Name = "Rows",
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		LayoutOrder = 2,
+		Parent = card,
+	})
+	Ui.list(content, 0)
+	Ui.inst("UIPadding", {
+		PaddingBottom = UDim.new(0, 4),
+		Parent = content,
+	})
+	return card, content, label
+end
+
+-- One flat, transparent row inside a group. Rows after the first get a thin separator above them.
+-- Rows use even layout orders and separators the odd order just before them.
+function Ui.groupRow(tab, kind, order, height)
+	local pad = Ui.metrics.groupPad
+	local rows = (tab._rows or 0) + 1
+	tab._rows = rows
+
+	if rows > 1 then
+		local divider = Ui.inst("Frame", {
+			Name = "Separator",
+			Size = UDim2.new(1, 0, 0, 1),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			LayoutOrder = order * 2 - 1,
+			Parent = tab.page,
+		})
+		local line = Ui.inst("Frame", {
+			Name = "Line",
+			Position = UDim2.fromOffset(pad, 0),
+			Size = UDim2.new(1, -(pad * 2), 1, 0),
+			BorderSizePixel = 0,
+			Parent = divider,
+		})
+		Theme.paint(line, "BackgroundColor3", "groupLine")
+	end
+
+	local row = Ui.inst("Frame", {
+		Name = "Row",
+		Size = UDim2.new(1, 0, 0, kind == "line" and (height or Ui.metrics.row) or 0),
+		AutomaticSize = kind == "line" and Enum.AutomaticSize.None or Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		LayoutOrder = order * 2,
+		Parent = tab.page,
+	})
+	if kind ~= "line" then
+		Ui.inst("UIPadding", {
+			PaddingTop = UDim.new(0, Ui.pick(8, 10)),
+			PaddingBottom = UDim.new(0, Ui.pick(8, 10)),
+			PaddingLeft = UDim.new(0, pad),
+			PaddingRight = UDim.new(0, pad),
+			Parent = row,
+		})
+		Ui.list(row, 4)
+	end
+	return row
+end
+
+-- Picks the row style for a widget: grouped rows inside a section, the usual outlined card elsewhere.
+-- kind is "line" (fixed height, optional height argument) or "card" (grows with its content).
+function Ui.rowFor(tab, kind, height)
+	local order = tab:nextOrder()
+	if tab.style == "group" then
+		return Ui.groupRow(tab, kind, order, height)
+	end
+	if kind == "line" then
+		return Ui.line(tab.page, order, height)
+	end
+	return Ui.card(tab.page, order)
+end
+
+-- Flat pill switch used by grouped toggles: solid blue when on, slate when off, white knob.
+function Ui.switch(parent, props)
+	props = props or {}
+	local width = props.width or Ui.metrics.switchWidth
+	local height = props.height or Ui.metrics.switchHeight
+	local inset = 3
+	local knobSize = height - inset * 2
+	local state = props.default == true
+
+	local track = Ui.inst("TextButton", {
+		Name = "Switch",
+		AutoButtonColor = false,
+		Text = "",
+		AnchorPoint = props.AnchorPoint or Vector2.new(1, 0.5),
+		Position = props.Position or UDim2.new(1, -Ui.metrics.groupPad, 0.5, 0),
+		Size = UDim2.fromOffset(width, height),
+		BorderSizePixel = 0,
+		ZIndex = props.ZIndex or 1,
+		Parent = parent,
+	})
+	Ui.corner(track, height // 2)
+	local knob = Ui.inst("Frame", {
+		Name = "Knob",
+		Size = UDim2.fromOffset(knobSize, knobSize),
+		BorderSizePixel = 0,
+		ZIndex = props.ZIndex or 1,
+		Parent = track,
+	})
+	Ui.corner(knob, knobSize // 2)
+
+	local function knobPosition()
+		return UDim2.fromOffset(state and (width - knobSize - inset) or inset, inset)
+	end
+	local function trackColor()
+		return Theme.color(state and "switchOn" or "switchOff")
+	end
+
+	knob.Position = knobPosition()
+	Theme.bind(track, function()
+		track.BackgroundColor3 = trackColor()
+		knob.BackgroundColor3 = Theme.color("switchKnob")
+	end)
+
+	local switch = { track = track, knob = knob }
+	function switch:set(value, instant)
+		state = value == true
+		if instant then
+			track.BackgroundColor3 = trackColor()
+			knob.Position = knobPosition()
+		else
+			Ui.tween(track, { BackgroundColor3 = trackColor() }, 0.14)
+			Ui.tween(knob, { Position = knobPosition() }, 0.14)
+		end
+	end
+	return switch
+end
+
 function Ui.title(parent, text, order)
 	local label = Ui.label({
 		Text = text or "",
@@ -1921,7 +2144,7 @@ local Ui = require("Ui")
 local Button = {}
 
 function Button.create(tab, config)
-	local row = Ui.card(tab.page, tab:nextOrder())
+	local row = Ui.rowFor(tab, "card")
 	Ui.title(row, config.title or "Button", 1)
 	Ui.note(row, config.description, 2)
 
@@ -2043,7 +2266,7 @@ function Colorpicker.create(tab, config)
 	local allowAlpha = config.transparency == true
 	local color = typeof(config.default) == "Color3" and config.default or Color3.fromRGB(214, 146, 58)
 	local alpha = 0
-	local row = Ui.line(tab.page, tab:nextOrder(), config.description and 54 or nil)
+	local row = Ui.rowFor(tab, "line", config.description and 54 or nil)
 
 	local title = Ui.label({
 		Text = config.title or "Color",
@@ -2413,7 +2636,7 @@ function Dropdown.create(tab, config)
 		single = tostring(config.default)
 	end
 
-	local row = Ui.card(tab.page, tab:nextOrder())
+	local row = Ui.rowFor(tab, "card")
 	Ui.title(row, config.title or "Dropdown", 1)
 	Ui.note(row, config.description, 2)
 
@@ -2874,7 +3097,7 @@ local Theme = require("Theme")
 local Input = {}
 
 function Input.create(tab, config)
-	local row = Ui.card(tab.page, tab:nextOrder())
+	local row = Ui.rowFor(tab, "card")
 	Ui.title(row, config.title or "Input", 1)
 	Ui.note(row, config.description, 2)
 
@@ -2964,7 +3187,7 @@ local function asKey(value)
 end
 
 function Keybind.create(tab, config)
-	local row = Ui.line(tab.page, tab:nextOrder())
+	local row = Ui.rowFor(tab, "line")
 	local title = Ui.label({
 		Text = config.title or "Keybind",
 		Font = Enum.Font.GothamMedium,
@@ -3091,7 +3314,7 @@ local Theme = require("Theme")
 local Paragraph = {}
 
 function Paragraph.create(tab, config)
-	local row = Ui.card(tab.page, tab:nextOrder())
+	local row = Ui.rowFor(tab, "card")
 	Ui.title(row, config.title or "Paragraph", 1)
 	local body = Ui.label({
 		Text = config.content or "",
@@ -3430,7 +3653,8 @@ function Slider.create(tab, config)
 		step = 1
 	end
 
-	local row = Ui.card(tab.page, tab:nextOrder())
+	local grouped = tab.style == "group"
+	local row = Ui.rowFor(tab, "card")
 	local header = Ui.inst("Frame", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, 0, 0, 16),
@@ -3470,11 +3694,11 @@ function Slider.create(tab, config)
 	local track = Ui.inst("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, 0, 0.5, 0),
-		Size = UDim2.new(1, 0, 0, 6),
+		Size = UDim2.new(1, 0, 0, grouped and 4 or 6),
 		BorderSizePixel = 0,
 		Parent = hit,
 	})
-	Ui.corner(track, 3)
+	Ui.corner(track, grouped and 2 or 3)
 	Theme.paint(track, "BackgroundColor3", "track")
 	local fill = Ui.inst("Frame", {
 		Size = UDim2.new(0, 0, 1, 0),
@@ -3482,7 +3706,7 @@ function Slider.create(tab, config)
 		BorderSizePixel = 0,
 		Parent = track,
 	})
-	Ui.corner(fill, 3)
+	Ui.corner(fill, grouped and 2 or 3)
 	Ui.gradient(fill, "accent2", "accent", 0)
 	local knob = Ui.inst("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -4032,48 +4256,74 @@ local KNOB = TRACK_HEIGHT - 6
 local KNOB_INSET = 3
 
 function Toggle.create(tab, config)
-	local row = Ui.line(tab.page, tab:nextOrder())
+	local grouped = tab.style == "group"
+	local row = Ui.rowFor(tab, "line")
+	local hit
+	if grouped then
+		-- The whole row toggles, which gives touch users a larger target than the switch alone.
+		hit = Ui.inst("TextButton", {
+			Name = "Hit",
+			AutoButtonColor = false,
+			Text = "",
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Size = UDim2.fromScale(1, 1),
+			Parent = row,
+		})
+	end
+	local switchWidth = grouped and Ui.metrics.switchWidth or TRACK_WIDTH
 	local title = Ui.label({
 		Text = config.title or "Toggle",
 		Font = Enum.Font.GothamMedium,
 		TextSize = 13,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		Position = UDim2.fromOffset(12, 0),
-		Size = UDim2.new(1, -(TRACK_WIDTH + 36), 1, 0),
+		Size = UDim2.new(1, -(switchWidth + 36), 1, 0),
 		Parent = row,
 	})
 	Theme.paint(title, "TextColor3", "text")
 
-	local track = Ui.inst("TextButton", {
-		AutoButtonColor = false,
-		Text = "",
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -12, 0.5, 0),
-		Size = UDim2.fromOffset(TRACK_WIDTH, TRACK_HEIGHT),
-		BorderSizePixel = 0,
-		Parent = row,
-	})
-	Ui.corner(track, TRACK_HEIGHT // 2)
-	local shine = Ui.gradient(track, "accent", "accent2", 0)
-	local stroke = Ui.stroke(track, "glow", 0.7, 1)
-
-	local knob = Ui.inst("Frame", {
-		Size = UDim2.fromOffset(KNOB, KNOB),
-		BorderSizePixel = 0,
-		Position = UDim2.fromOffset(KNOB_INSET, KNOB_INSET),
-		Parent = track,
-	})
-	Ui.corner(knob, KNOB // 2)
-
 	local enabled = config.default == true
 	local control = { type = "toggle" }
+	local paint
+	local clickTarget
 
-	local function paint()
-		shine.Enabled = enabled
-		track.BackgroundColor3 = enabled and Color3.new(1, 1, 1) or Theme.color("track")
-		stroke.Transparency = enabled and 0.3 or 0.7
-		knob.BackgroundColor3 = enabled and Theme.color("accentText") or Theme.color("muted")
-		Ui.tween(knob, { Position = UDim2.fromOffset(enabled and (TRACK_WIDTH - KNOB - KNOB_INSET) or KNOB_INSET, KNOB_INSET) }, 0.14)
+	if grouped then
+		local switch = Ui.switch(row, { default = enabled, ZIndex = 2 })
+		clickTarget = switch.track
+		paint = function()
+			switch:set(enabled)
+		end
+	else
+		local track = Ui.inst("TextButton", {
+			AutoButtonColor = false,
+			Text = "",
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -12, 0.5, 0),
+			Size = UDim2.fromOffset(TRACK_WIDTH, TRACK_HEIGHT),
+			BorderSizePixel = 0,
+			Parent = row,
+		})
+		Ui.corner(track, TRACK_HEIGHT // 2)
+		local shine = Ui.gradient(track, "accent", "accent2", 0)
+		local stroke = Ui.stroke(track, "glow", 0.7, 1)
+
+		local knob = Ui.inst("Frame", {
+			Size = UDim2.fromOffset(KNOB, KNOB),
+			BorderSizePixel = 0,
+			Position = UDim2.fromOffset(KNOB_INSET, KNOB_INSET),
+			Parent = track,
+		})
+		Ui.corner(knob, KNOB // 2)
+
+		clickTarget = track
+		paint = function()
+			shine.Enabled = enabled
+			track.BackgroundColor3 = enabled and Color3.new(1, 1, 1) or Theme.color("track")
+			stroke.Transparency = enabled and 0.3 or 0.7
+			knob.BackgroundColor3 = enabled and Theme.color("accentText") or Theme.color("muted")
+			Ui.tween(knob, { Position = UDim2.fromOffset(enabled and (TRACK_WIDTH - KNOB - KNOB_INSET) or KNOB_INSET, KNOB_INSET) }, 0.14)
+		end
 	end
 
 	function control:get()
@@ -4092,9 +4342,14 @@ function Toggle.create(tab, config)
 		end
 	end
 
-	track.MouseButton1Click:Connect(function()
+	clickTarget.MouseButton1Click:Connect(function()
 		control:set(not enabled)
 	end)
+	if hit then
+		hit.MouseButton1Click:Connect(function()
+			control:set(not enabled)
+		end)
+	end
 	paint()
 	Theme.onChange(function()
 		if row.Parent then
