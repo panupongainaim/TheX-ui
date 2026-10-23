@@ -675,8 +675,11 @@ local Actions = require("Widgets/Actions")
 
 local Tab = {}
 
-local GAP = 10
-local MIN_LEFT = 380
+local GAP = Ui.metrics.gap
+local MIN_LEFT = 270
+local MIN_RIGHT = 190
+local RIGHT_SHARE = 0.4
+local STACK_BELOW = 480
 
 local widgets = {
 	paragraph = Paragraph,
@@ -715,7 +718,7 @@ local function container(window, page)
 
 	function target:columns(options)
 		options = options or {}
-		local rightWidth = tonumber(options.rightWidth) or 230
+		local preferredRight = tonumber(options.rightWidth) or 230
 		local holder = Ui.inst("Frame", {
 			Name = "Columns",
 			Size = UDim2.new(1, 0, 0, 0),
@@ -743,7 +746,10 @@ local function container(window, page)
 			local width = holder.AbsoluteSize.X
 			local leftHeight = leftFrame.AbsoluteSize.Y
 			local rightHeight = rightFrame.AbsoluteSize.Y
-			if width >= MIN_LEFT + GAP + rightWidth then
+			-- rightWidth is a preference: the right column may shrink (never grow) so two columns still fit.
+			local lowest = math.min(preferredRight, MIN_RIGHT)
+			local rightWidth = math.clamp(preferredRight, lowest, math.max(lowest, width * RIGHT_SHARE))
+			if width >= STACK_BELOW and width >= MIN_LEFT + GAP + rightWidth then
 				leftFrame.Position = UDim2.new()
 				leftFrame.Size = UDim2.new(1, -(rightWidth + GAP), 0, 0)
 				rightFrame.Position = UDim2.new(1, -rightWidth, 0, 0)
@@ -775,7 +781,7 @@ function Tab.create(window, config)
 		Name = title .. "Tab",
 		AutoButtonColor = false,
 		Text = "",
-		Size = UDim2.new(1, -20, 0, 40),
+		Size = UDim2.new(1, -16, 0, Ui.pick(34, 44)),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Parent = window.rail,
@@ -788,7 +794,7 @@ function Tab.create(window, config)
 		BorderSizePixel = 0,
 		Parent = button,
 	})
-	Ui.corner(fill, 10)
+	Ui.corner(fill, 8)
 	local shine = Ui.gradient(fill, "accent2", "accent2", 0)
 	shine.Transparency = NumberSequence.new(0, 0.45)
 	local hover = Ui.inst("Frame", {
@@ -798,23 +804,23 @@ function Tab.create(window, config)
 		BorderSizePixel = 0,
 		Parent = button,
 	})
-	Ui.corner(hover, 10)
+	Ui.corner(hover, 8)
 	Theme.paint(hover, "BackgroundColor3", "row")
 	local fillStroke = Ui.stroke(fill, "glow", 1, 1)
 
 	local icon = Ui.icon(button, config.icon or "chevron-right", {
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 14, 0.5, 0),
-		Size = UDim2.fromOffset(18, 18),
+		Position = UDim2.new(0, 12, 0.5, 0),
+		Size = UDim2.fromOffset(16, 16),
 		ZIndex = 2,
 	})
 	local label = Ui.label({
 		Text = title,
 		Font = Enum.Font.GothamMedium,
-		TextSize = 14,
+		TextSize = 13,
 		TextTruncate = Enum.TextTruncate.AtEnd,
-		Position = UDim2.fromOffset(44, 0),
-		Size = UDim2.new(1, -50, 1, 0),
+		Position = UDim2.fromOffset(36, 0),
+		Size = UDim2.new(1, -42, 1, 0),
 		ZIndex = 2,
 		Parent = button,
 	})
@@ -825,7 +831,7 @@ function Tab.create(window, config)
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
-		ScrollBarThickness = 4,
+		ScrollBarThickness = 3,
 		ScrollingDirection = Enum.ScrollingDirection.Y,
 		ElasticBehavior = Enum.ElasticBehavior.Never,
 		CanvasSize = UDim2.new(),
@@ -834,10 +840,10 @@ function Tab.create(window, config)
 	})
 	Theme.paint(page, "ScrollBarImageColor3", "accent")
 	local pagePadding = Ui.inst("UIPadding", {
-		PaddingTop = UDim.new(0, 4),
-		PaddingBottom = UDim.new(0, 12),
-		PaddingLeft = UDim.new(0, 12),
-		PaddingRight = UDim.new(0, 12),
+		PaddingTop = UDim.new(0, 2),
+		PaddingBottom = UDim.new(0, 10),
+		PaddingLeft = UDim.new(0, 10),
+		PaddingRight = UDim.new(0, 10),
 		Parent = page,
 	})
 	Ui.list(page, GAP)
@@ -863,13 +869,13 @@ function Tab.create(window, config)
 		if compact then
 			icon.frame.AnchorPoint = Vector2.new(0.5, 0.5)
 			icon.frame.Position = UDim2.fromScale(0.5, 0.5)
-			button.Size = UDim2.new(1, -12, 0, phone and 46 or 42)
+			button.Size = UDim2.new(1, -12, 0, Ui.pick(phone and 38 or 36, 44))
 		else
 			icon.frame.AnchorPoint = Vector2.new(0, 0.5)
-			icon.frame.Position = UDim2.new(0, 14, 0.5, 0)
-			button.Size = UDim2.new(1, -20, 0, 42)
+			icon.frame.Position = UDim2.new(0, 12, 0.5, 0)
+			button.Size = UDim2.new(1, -16, 0, Ui.pick(34, 44))
 		end
-		local padding = phone and 8 or 12
+		local padding = phone and 8 or 10
 		pagePadding.PaddingLeft = UDim.new(0, padding)
 		pagePadding.PaddingRight = UDim.new(0, padding)
 	end
@@ -908,7 +914,7 @@ local Theme = {
 			bar = Color3.fromRGB(15, 28, 61),
 			row = Color3.fromRGB(19, 35, 74),
 			text = Color3.fromRGB(230, 240, 255),
-			muted = Color3.fromRGB(143, 163, 199),
+			muted = Color3.fromRGB(165, 182, 214),
 			accent = Color3.fromRGB(0, 180, 255),
 			accent2 = Color3.fromRGB(37, 99, 255),
 			accentText = Color3.fromRGB(245, 250, 255),
@@ -1019,8 +1025,30 @@ modules["Ui"] = function(require)
 local Icons = require("Icons")
 local Theme = require("Theme")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
 local Ui = {}
+
+-- Touch-only devices (no mouse) get larger hit targets; everything else stays compact.
+Ui.touch = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+
+function Ui.pick(desktop, touch)
+	if Ui.touch then
+		return touch or desktop
+	end
+	return desktop
+end
+
+-- Shared spacing and sizing so every widget lines up.
+Ui.metrics = {
+	gap = 8,
+	pad = 10,
+	row = Ui.pick(40, 46),
+	control = Ui.pick(32, 40),
+	button = Ui.pick(30, 38),
+	cardRadius = 10,
+	controlRadius = 8,
+}
 
 function Ui.inst(className, props)
 	local object = Instance.new(className)
@@ -1127,8 +1155,8 @@ function Ui.glass(frame, token, transparency, strokeTransparency)
 end
 
 function Ui.panel(frame)
-	Ui.corner(frame, 10)
-	return Ui.glass(frame, "bar", 0.04, 0.45)
+	Ui.corner(frame, Ui.metrics.cardRadius)
+	return Ui.glass(frame, "bar", 0.02, 0.45)
 end
 
 function Ui.field(object)
@@ -1301,7 +1329,7 @@ end
 function Ui.chip(parent, text, props)
 	props = props or {}
 	local tone = props.token or "muted"
-	local height = props.height or 22
+	local height = props.height or 20
 	local chip = Ui.inst("Frame", {
 		Name = props.Name or "Chip",
 		AnchorPoint = props.AnchorPoint or Vector2.zero,
@@ -1317,18 +1345,18 @@ function Ui.chip(parent, text, props)
 	Ui.corner(chip, height // 2)
 	Ui.stroke(chip, tone, props.strokeTransparency or 0.7, 1)
 	Ui.inst("UIPadding", {
-		PaddingLeft = UDim.new(0, 9),
-		PaddingRight = UDim.new(0, 9),
+		PaddingLeft = UDim.new(0, 8),
+		PaddingRight = UDim.new(0, 8),
 		Parent = chip,
 	})
-	local layout = Ui.list(chip, 5, Enum.FillDirection.Horizontal)
+	local layout = Ui.list(chip, 4, Enum.FillDirection.Horizontal)
 	layout.VerticalAlignment = Enum.VerticalAlignment.Center
 
 	local dot
 	if props.dot then
 		dot = Ui.inst("Frame", {
 			Name = "Dot",
-			Size = UDim2.fromOffset(7, 7),
+			Size = UDim2.fromOffset(6, 6),
 			BorderSizePixel = 0,
 			LayoutOrder = 1,
 			Parent = chip,
@@ -1341,7 +1369,7 @@ function Ui.chip(parent, text, props)
 	end
 	if props.icon then
 		Ui.icon(chip, props.icon, {
-			Size = UDim2.fromOffset(12, 12),
+			Size = UDim2.fromOffset(11, 11),
 			LayoutOrder = 2,
 			token = props.textToken or tone,
 		})
@@ -1364,7 +1392,7 @@ function Ui.sectionHeader(parent, iconName, text, props)
 	local row = Ui.inst("Frame", {
 		Name = "Header",
 		Position = props.Position or UDim2.new(),
-		Size = props.Size or UDim2.new(1, 0, 0, 22),
+		Size = props.Size or UDim2.new(1, 0, 0, 20),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		LayoutOrder = props.LayoutOrder or 0,
@@ -1373,16 +1401,16 @@ function Ui.sectionHeader(parent, iconName, text, props)
 	local icon = Ui.icon(row, iconName, {
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.fromScale(0, 0.5),
-		Size = UDim2.fromOffset(18, 18),
+		Size = UDim2.fromOffset(16, 16),
 		token = props.token or "accent",
 	})
 	local label = Ui.label({
 		Text = text or "",
 		Font = Enum.Font.GothamBold,
-		TextSize = props.textSize or 15,
+		TextSize = props.textSize or 14,
 		TextTruncate = Enum.TextTruncate.AtEnd,
-		Position = UDim2.fromOffset(28, 0),
-		Size = UDim2.new(1, -28, 1, 0),
+		Position = UDim2.fromOffset(24, 0),
+		Size = UDim2.new(1, -24, 1, 0),
 		Parent = row,
 	})
 	Theme.paint(label, "TextColor3", "text")
@@ -1399,8 +1427,8 @@ function Ui.box(parent, order, height)
 		LayoutOrder = order,
 		Parent = parent,
 	})
-	Ui.glass(box, "row", 0.45, 0.72)
-	Ui.corner(box, 12)
+	Ui.glass(box, "row", 0.3, 0.7)
+	Ui.corner(box, Ui.metrics.cardRadius)
 	return box
 end
 
@@ -1408,7 +1436,7 @@ function Ui.accentButton(parent, text, size, order, iconName)
 	local holder = Ui.inst("Frame", {
 		Name = "Button",
 		BackgroundTransparency = 1,
-		Size = size or UDim2.new(1, 0, 0, 34),
+		Size = size or UDim2.new(1, 0, 0, Ui.metrics.button),
 		LayoutOrder = order,
 		Parent = parent,
 	})
@@ -1423,9 +1451,9 @@ function Ui.accentButton(parent, text, size, order, iconName)
 		BorderSizePixel = 0,
 		Parent = holder,
 	})
-	Ui.corner(face, 8)
+	Ui.corner(face, Ui.metrics.controlRadius)
 	Ui.gradient(face, "accent", "accent2", 0)
-	local stroke = Ui.stroke(face, "glow", 0.65, 1)
+	local stroke = Ui.stroke(face, "glow", 0.6, 1)
 	local label
 	if iconName then
 		local content = Ui.inst("Frame", {
@@ -1434,18 +1462,18 @@ function Ui.accentButton(parent, text, size, order, iconName)
 			BackgroundTransparency = 1,
 			Parent = face,
 		})
-		local layout = Ui.list(content, 8, Enum.FillDirection.Horizontal)
+		local layout = Ui.list(content, 6, Enum.FillDirection.Horizontal)
 		layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 		layout.VerticalAlignment = Enum.VerticalAlignment.Center
 		Ui.icon(content, iconName, {
-			Size = UDim2.fromOffset(16, 16),
+			Size = UDim2.fromOffset(14, 14),
 			LayoutOrder = 1,
 			token = "accentText",
 		})
 		label = Ui.label({
 			Text = text or "",
 			Font = Enum.Font.GothamBold,
-			TextSize = 14,
+			TextSize = 13,
 			Size = UDim2.fromScale(0, 1),
 			AutomaticSize = Enum.AutomaticSize.X,
 			LayoutOrder = 2,
@@ -1454,8 +1482,8 @@ function Ui.accentButton(parent, text, size, order, iconName)
 	else
 		label = Ui.label({
 			Text = text or "",
-			Font = Enum.Font.GothamMedium,
-			TextSize = 14,
+			Font = Enum.Font.GothamBold,
+			TextSize = 13,
 			TextXAlignment = Enum.TextXAlignment.Center,
 			TextTruncate = Enum.TextTruncate.AtEnd,
 			Size = UDim2.fromScale(1, 1),
@@ -1471,7 +1499,7 @@ function Ui.accentButton(parent, text, size, order, iconName)
 			BackgroundColor3 = (hovered or pressed) and BRIGHT or REST,
 			Size = pressed and UDim2.new(1, -6, 1, -4) or UDim2.fromScale(1, 1),
 		}, 0.1)
-		Ui.tween(stroke, { Transparency = hovered and 0.15 or 0.65 }, 0.12)
+		Ui.tween(stroke, { Transparency = hovered and 0.1 or 0.6 }, 0.12)
 	end
 	local function isPress(input)
 		return input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch
@@ -1509,23 +1537,29 @@ function Ui.card(parent, order)
 		LayoutOrder = order,
 		Parent = parent,
 	})
-	Ui.glass(row)
-	Ui.corner(row, 8)
-	Ui.padding(row, 10)
-	Ui.list(row, 6)
+	Ui.glass(row, "row", 0.3, 0.72)
+	Ui.corner(row, Ui.metrics.cardRadius)
+	Ui.inst("UIPadding", {
+		PaddingTop = UDim.new(0, 8),
+		PaddingBottom = UDim.new(0, 8),
+		PaddingLeft = UDim.new(0, 10),
+		PaddingRight = UDim.new(0, 10),
+		Parent = row,
+	})
+	Ui.list(row, 4)
 	return row
 end
 
 function Ui.line(parent, order, height)
 	local row = Ui.inst("Frame", {
 		Name = "Row",
-		Size = UDim2.new(1, 0, 0, height or 44),
+		Size = UDim2.new(1, 0, 0, height or Ui.metrics.row),
 		BorderSizePixel = 0,
 		LayoutOrder = order,
 		Parent = parent,
 	})
-	Ui.glass(row)
-	Ui.corner(row, 8)
+	Ui.glass(row, "row", 0.3, 0.72)
+	Ui.corner(row, Ui.metrics.cardRadius)
 	return row
 end
 
@@ -1533,9 +1567,9 @@ function Ui.title(parent, text, order)
 	local label = Ui.label({
 		Text = text or "",
 		Font = Enum.Font.GothamMedium,
-		TextSize = 14,
+		TextSize = 13,
 		TextTruncate = Enum.TextTruncate.AtEnd,
-		Size = UDim2.new(1, 0, 0, 18),
+		Size = UDim2.new(1, 0, 0, 16),
 		LayoutOrder = order or 1,
 		Parent = parent,
 	})
@@ -1617,8 +1651,8 @@ local TeleportService = game:GetService("TeleportService")
 
 local Actions = {}
 
-local GAP = 10
-local BUTTON_HEIGHT = 42
+local GAP = 6
+local BUTTON_HEIGHT = Ui.pick(34, 42)
 
 local function clipboard()
 	local candidates = {
@@ -1694,7 +1728,7 @@ local function actionButton(parent, spec, primary, order)
 		LayoutOrder = order,
 		Parent = parent,
 	})
-	Ui.corner(button, 10)
+	Ui.corner(button, Ui.metrics.controlRadius)
 	local stroke
 	if primary then
 		local shine = Ui.gradient(button, "accent2", "accent", 0)
@@ -1706,8 +1740,8 @@ local function actionButton(parent, spec, primary, order)
 	local textToken = primary and "accentText" or "text"
 	Ui.icon(button, spec.icon or "zap", {
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 14, 0.5, 0),
-		Size = UDim2.fromOffset(18, 18),
+		Position = UDim2.new(0, 12, 0.5, 0),
+		Size = UDim2.fromOffset(16, 16),
 		token = textToken,
 	})
 	local label = Ui.label({
@@ -1715,15 +1749,15 @@ local function actionButton(parent, spec, primary, order)
 		Font = Enum.Font.GothamMedium,
 		TextSize = 13,
 		TextTruncate = Enum.TextTruncate.AtEnd,
-		Position = UDim2.fromOffset(44, 0),
-		Size = UDim2.new(1, -72, 1, 0),
+		Position = UDim2.fromOffset(36, 0),
+		Size = UDim2.new(1, -62, 1, 0),
 		Parent = button,
 	})
 	Theme.paint(label, "TextColor3", textToken)
 	Ui.icon(button, "chevron-right", {
 		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -12, 0.5, 0),
-		Size = UDim2.fromOffset(14, 14),
+		Position = UDim2.new(1, -10, 0.5, 0),
+		Size = UDim2.fromOffset(12, 12),
 		token = primary and "accentText" or "muted",
 	})
 
@@ -1749,11 +1783,11 @@ function Actions.create(tab, config)
 	local buttons = type(config.buttons) == "table" and #config.buttons > 0 and config.buttons or Actions.defaults()
 	local card = Ui.box(tab.page, tab:nextOrder())
 	card.Name = "Actions"
-	Ui.padding(card, 14)
+	Ui.padding(card, 12)
 	Ui.list(card, GAP)
 
 	local header = Ui.sectionHeader(card, "zap", config.title or "Quick Actions", { LayoutOrder = 0 })
-	header.Size = UDim2.new(1, 0, 0, 28)
+	header.Size = UDim2.new(1, 0, 0, 22)
 
 	for index, spec in ipairs(buttons) do
 		actionButton(card, spec, index == 1, index)
@@ -1783,7 +1817,7 @@ local Theme = require("Theme")
 
 local Brand = {}
 
-local HEIGHT = 92
+local HEIGHT = 64
 
 local function italic(label, weight)
 	pcall(function()
@@ -1802,26 +1836,26 @@ function Brand.create(tab, config)
 		BorderSizePixel = 0,
 		Parent = card,
 	})
-	Ui.corner(tint, 12)
+	Ui.corner(tint, Ui.metrics.cardRadius)
 	local shine = Ui.gradient(tint, "accent2", "purple", 25)
 	shine.Transparency = NumberSequence.new(0.6, 0.78)
 
 	local mark = Ui.icon(card, "logo", {
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, 18, 0.5, 0),
-		Size = UDim2.fromOffset(110, 110),
+		Size = UDim2.fromOffset(72, 72),
 	})
 	mark.image.ImageTransparency = 0.88
 	mark.glyph.TextTransparency = 0.9
 
 	local title = Ui.label({
 		Text = config.title or "TheX",
-		TextSize = 30,
+		TextSize = 22,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 14),
-		Size = UDim2.new(1, -24, 0, 36),
+		Position = UDim2.new(0.5, 0, 0, 7),
+		Size = UDim2.new(1, -24, 0, 28),
 		Parent = card,
 	})
 	title.TextColor3 = Color3.new(1, 1, 1)
@@ -1830,12 +1864,12 @@ function Brand.create(tab, config)
 
 	local tagline = Ui.label({
 		Text = config.tagline or "More than just a script.",
-		TextSize = 12,
+		TextSize = 11,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 52),
-		Size = UDim2.new(1, -24, 0, 16),
+		Position = UDim2.new(0.5, 0, 0, 36),
+		Size = UDim2.new(1, -24, 0, 14),
 		Parent = card,
 	})
 	Theme.paint(tagline, "TextColor3", "accent")
@@ -1844,7 +1878,7 @@ function Brand.create(tab, config)
 	local swoosh = Ui.inst("Frame", {
 		Name = "Swoosh",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 10, 0, 72),
+		Position = UDim2.new(0.5, 10, 0, 54),
 		Size = UDim2.new(0.5, 0, 0, 2),
 		BackgroundColor3 = Color3.new(1, 1, 1),
 		BorderSizePixel = 0,
@@ -1863,9 +1897,9 @@ function Brand.create(tab, config)
 		if width <= 0 then
 			return
 		end
-		local markSize = math.clamp(width * 0.32, 72, 110)
+		local markSize = math.clamp(width * 0.28, 48, 72)
 		mark.frame.Size = UDim2.fromOffset(markSize, markSize)
-		title.TextSize = width < 320 and 24 or 30
+		title.TextSize = width < 240 and 18 or 22
 	end
 	card:GetPropertyChangedSignal("AbsoluteSize"):Connect(layout)
 	layout()
@@ -1891,7 +1925,7 @@ function Button.create(tab, config)
 	Ui.title(row, config.title or "Button", 1)
 	Ui.note(row, config.description, 2)
 
-	local button = Ui.accentButton(row, config.buttonText or "Run", UDim2.new(1, 0, 0, 34), 3)
+	local button = Ui.accentButton(row, config.buttonText or "Run", UDim2.new(1, 0, 0, Ui.metrics.button), 3)
 	button.MouseButton1Click:Connect(function()
 		Ui.fire(config.onClick)
 	end)
@@ -2009,15 +2043,15 @@ function Colorpicker.create(tab, config)
 	local allowAlpha = config.transparency == true
 	local color = typeof(config.default) == "Color3" and config.default or Color3.fromRGB(214, 146, 58)
 	local alpha = 0
-	local row = Ui.line(tab.page, tab:nextOrder(), config.description and 68 or 52)
+	local row = Ui.line(tab.page, tab:nextOrder(), config.description and 54 or nil)
 
 	local title = Ui.label({
 		Text = config.title or "Color",
 		Font = Enum.Font.GothamMedium,
-		TextSize = 14,
+		TextSize = 13,
 		TextTruncate = Enum.TextTruncate.AtEnd,
-		Position = UDim2.fromOffset(12, config.description and 8 or 0),
-		Size = UDim2.new(1, -64, 0, config.description and 18 or 48),
+		Position = UDim2.fromOffset(12, config.description and 7 or 0),
+		Size = UDim2.new(1, -56, config.description and 0 or 1, config.description and 16 or 0),
 		Parent = row,
 	})
 	Theme.paint(title, "TextColor3", "text")
@@ -2026,8 +2060,8 @@ function Colorpicker.create(tab, config)
 			Text = config.description,
 			TextSize = 12,
 			TextTruncate = Enum.TextTruncate.AtEnd,
-			Position = UDim2.fromOffset(12, 30),
-			Size = UDim2.new(1, -64, 0, 18),
+			Position = UDim2.fromOffset(12, 26),
+			Size = UDim2.new(1, -56, 0, 16),
 			Parent = row,
 		})
 		Theme.paint(note, "TextColor3", "muted")
@@ -2038,7 +2072,7 @@ function Colorpicker.create(tab, config)
 		Text = "",
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -12, 0.5, 0),
-		Size = UDim2.fromOffset(36, 36),
+		Size = UDim2.fromOffset(Ui.pick(28, 34), Ui.pick(28, 34)),
 		BorderSizePixel = 0,
 		Parent = row,
 	})
@@ -2150,10 +2184,15 @@ local Games = require("Games")
 
 local CurrentMap = {}
 
-local COVER = 132
-local PAD = 16
-local HEADER = 24
-local BUTTON_WIDTH = 140
+local COVER = 84
+local COVER_NARROW = 56
+local PAD = 12
+local HEADER = 20
+local TOP = PAD + HEADER + 8
+local TAGS_HEIGHT = 22
+local DESCRIPTION_HEIGHT = 26
+local BUTTON_WIDTH = 112
+local NARROW_BELOW = 380
 
 local function clean(text)
 	text = string.gsub(tostring(text or ""), "%s+", " ")
@@ -2165,8 +2204,8 @@ end
 
 function CurrentMap.create(tab, config)
 	local supported = Games.supported(config.supportedGames)
-	local top = PAD + HEADER + 14
-	local row = Ui.box(tab.page, tab:nextOrder(), top + COVER + PAD)
+	local buttonHeight = Ui.metrics.button
+	local row = Ui.box(tab.page, tab:nextOrder(), TOP + COVER + PAD)
 	row.Name = "CurrentMap"
 
 	local header, headerLabel = Ui.sectionHeader(row, "gamepad-2", config.title or "Current Map", {
@@ -2179,12 +2218,12 @@ function CurrentMap.create(tab, config)
 		Position = UDim2.fromScale(1, 0.5),
 		token = tone,
 		dot = true,
-		height = 24,
+		height = 20,
 	})
 
 	local cover = Ui.inst("ImageLabel", {
 		Name = "Cover",
-		Position = UDim2.fromOffset(PAD, top),
+		Position = UDim2.fromOffset(PAD, TOP),
 		Size = UDim2.fromOffset(COVER, COVER),
 		BorderSizePixel = 0,
 		ScaleType = Enum.ScaleType.Crop,
@@ -2192,36 +2231,30 @@ function CurrentMap.create(tab, config)
 		Parent = row,
 	})
 	Theme.paint(cover, "BackgroundColor3", "window")
-	Ui.corner(cover, 12)
+	Ui.corner(cover, 8)
 	Ui.stroke(cover, "glow", 0.5, 1)
 
-	local left = PAD + COVER + 18
 	local name = Ui.label({
 		Text = "Loading...",
 		Font = Enum.Font.GothamBold,
-		TextSize = 17,
+		TextSize = 15,
 		TextTruncate = Enum.TextTruncate.AtEnd,
-		Position = UDim2.fromOffset(left, top + 4),
-		Size = UDim2.new(1, -(left + PAD), 0, 22),
 		Parent = row,
 	})
 	Theme.paint(name, "TextColor3", "text")
 	local creator = Ui.label({
 		Text = "",
-		TextSize = 12,
+		TextSize = 11,
 		TextTruncate = Enum.TextTruncate.AtEnd,
-		Position = UDim2.fromOffset(left, top + 28),
-		Size = UDim2.new(1, -(left + PAD), 0, 16),
 		Parent = row,
 	})
 	Theme.paint(creator, "TextColor3", "muted")
 	local description = Ui.label({
 		Text = "",
-		TextSize = 12,
+		TextSize = 11,
 		TextWrapped = true,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		TextYAlignment = Enum.TextYAlignment.Top,
-		Position = UDim2.fromOffset(left, top + 52),
-		Size = UDim2.new(1, -(left + PAD), 0, 32),
 		Parent = row,
 	})
 	Theme.paint(description, "TextColor3", "muted")
@@ -2229,14 +2262,11 @@ function CurrentMap.create(tab, config)
 	local hasLoad = type(config.onLoad) == "function"
 	local tags = Ui.inst("Frame", {
 		Name = "Tags",
-		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.new(0, left, 0, top + COVER - 8),
-		Size = UDim2.new(1, -(left + PAD + (hasLoad and BUTTON_WIDTH + 12 or 0)), 0, 24),
 		BackgroundTransparency = 1,
 		ClipsDescendants = true,
 		Parent = row,
 	})
-	local tagLayout = Ui.list(tags, 10, Enum.FillDirection.Horizontal)
+	local tagLayout = Ui.list(tags, 8, Enum.FillDirection.Horizontal)
 	tagLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 	Ui.chip(tags, "Game", {
 		icon = "tag",
@@ -2256,9 +2286,13 @@ function CurrentMap.create(tab, config)
 	local loadHolder
 	if hasLoad then
 		local button
-		button, _, loadHolder = Ui.accentButton(row, config.loadText or "Load Script", UDim2.fromOffset(BUTTON_WIDTH, 40), nil, "play")
-		loadHolder.AnchorPoint = Vector2.new(1, 1)
-		loadHolder.Position = UDim2.new(1, -PAD, 0, top + COVER)
+		button, _, loadHolder = Ui.accentButton(
+			row,
+			config.loadText or "Load Script",
+			UDim2.fromOffset(BUTTON_WIDTH, buttonHeight),
+			nil,
+			"play"
+		)
 		button.MouseButton1Click:Connect(function()
 			Ui.fire(config.onLoad)
 		end)
@@ -2270,48 +2304,48 @@ function CurrentMap.create(tab, config)
 			return
 		end
 		local chipWidth = supportChip.AbsoluteSize.X
-		headerLabel.Size = UDim2.new(1, -(28 + chipWidth + 8), 1, 0)
-		if width < 420 then
-			local coverSize = math.min(104, width - PAD * 2)
+		headerLabel.Size = UDim2.new(1, -(24 + chipWidth + 8), 1, 0)
+		if width < NARROW_BELOW then
+			-- Narrow: small cover beside the text, tags and a full-width button stacked underneath.
+			local coverSize = math.min(COVER_NARROW, width - PAD * 2)
+			local infoLeft = PAD + coverSize + 10
 			cover.Size = UDim2.fromOffset(coverSize, coverSize)
-			cover.Position = UDim2.fromOffset(PAD, top)
-			local infoLeft = PAD + coverSize + 12
-			name.Position = UDim2.fromOffset(infoLeft, top)
-			name.Size = UDim2.new(1, -(infoLeft + PAD), 0, 22)
-			creator.Position = UDim2.fromOffset(infoLeft, top + 24)
-			creator.Size = UDim2.new(1, -(infoLeft + PAD), 0, 16)
-			description.Position = UDim2.fromOffset(infoLeft, top + 44)
-			description.Size = UDim2.new(1, -(infoLeft + PAD), 0, math.max(40, coverSize - 44))
-			local tagsTop = top + coverSize + 10
+			name.Position = UDim2.fromOffset(infoLeft, TOP - 2)
+			name.Size = UDim2.new(1, -(infoLeft + PAD), 0, 18)
+			creator.Position = UDim2.fromOffset(infoLeft, TOP + 17)
+			creator.Size = UDim2.new(1, -(infoLeft + PAD), 0, 14)
+			description.Position = UDim2.fromOffset(infoLeft, TOP + 33)
+			description.Size = UDim2.new(1, -(infoLeft + PAD), 0, DESCRIPTION_HEIGHT)
+			local tagsTop = TOP + math.max(coverSize, 33 + DESCRIPTION_HEIGHT) + 8
 			tags.AnchorPoint = Vector2.zero
 			tags.Position = UDim2.fromOffset(PAD, tagsTop)
-			tags.Size = UDim2.new(1, -(PAD * 2), 0, 24)
+			tags.Size = UDim2.new(1, -(PAD * 2), 0, TAGS_HEIGHT)
 			if loadHolder then
 				loadHolder.AnchorPoint = Vector2.zero
-				loadHolder.Position = UDim2.fromOffset(PAD, tagsTop + 34)
-				loadHolder.Size = UDim2.new(1, -(PAD * 2), 0, 44)
-				row.Size = UDim2.new(1, 0, 0, tagsTop + 34 + 44 + PAD)
+				loadHolder.Position = UDim2.fromOffset(PAD, tagsTop + TAGS_HEIGHT + 8)
+				loadHolder.Size = UDim2.new(1, -(PAD * 2), 0, buttonHeight)
+				row.Size = UDim2.new(1, 0, 0, tagsTop + TAGS_HEIGHT + 8 + buttonHeight + PAD)
 			else
-				row.Size = UDim2.new(1, 0, 0, tagsTop + 24 + PAD)
+				row.Size = UDim2.new(1, 0, 0, tagsTop + TAGS_HEIGHT + PAD)
 			end
 		else
+			local left = PAD + COVER + 12
 			cover.Size = UDim2.fromOffset(COVER, COVER)
-			cover.Position = UDim2.fromOffset(PAD, top)
-			name.Position = UDim2.fromOffset(left, top + 4)
-			name.Size = UDim2.new(1, -(left + PAD), 0, 22)
-			creator.Position = UDim2.fromOffset(left, top + 28)
-			creator.Size = UDim2.new(1, -(left + PAD), 0, 16)
-			description.Position = UDim2.fromOffset(left, top + 52)
-			description.Size = UDim2.new(1, -(left + PAD), 0, 52)
+			name.Position = UDim2.fromOffset(left, TOP - 2)
+			name.Size = UDim2.new(1, -(left + PAD), 0, 20)
+			creator.Position = UDim2.fromOffset(left, TOP + 19)
+			creator.Size = UDim2.new(1, -(left + PAD), 0, 14)
+			description.Position = UDim2.fromOffset(left, TOP + 35)
+			description.Size = UDim2.new(1, -(left + PAD), 0, DESCRIPTION_HEIGHT)
 			tags.AnchorPoint = Vector2.new(0, 1)
-			tags.Position = UDim2.new(0, left, 0, top + COVER - 8)
-			tags.Size = UDim2.new(1, -(left + PAD + (hasLoad and BUTTON_WIDTH + 12 or 0)), 0, 24)
+			tags.Position = UDim2.new(0, left, 0, TOP + COVER)
+			tags.Size = UDim2.new(1, -(left + PAD + (hasLoad and BUTTON_WIDTH + 10 or 0)), 0, TAGS_HEIGHT)
 			if loadHolder then
 				loadHolder.AnchorPoint = Vector2.new(1, 1)
-				loadHolder.Position = UDim2.new(1, -PAD, 0, top + COVER)
-				loadHolder.Size = UDim2.fromOffset(BUTTON_WIDTH, 40)
+				loadHolder.Position = UDim2.new(1, -PAD, 0, TOP + COVER)
+				loadHolder.Size = UDim2.fromOffset(BUTTON_WIDTH, buttonHeight)
 			end
-			row.Size = UDim2.new(1, 0, 0, top + COVER + PAD)
+			row.Size = UDim2.new(1, 0, 0, TOP + COVER + PAD)
 		end
 	end
 	row:GetPropertyChangedSignal("AbsoluteSize"):Connect(layout)
@@ -2386,16 +2420,16 @@ function Dropdown.create(tab, config)
 	local opener = Ui.inst("TextButton", {
 		AutoButtonColor = false,
 		Text = "",
-		Size = UDim2.new(1, 0, 0, 40),
+		Size = UDim2.new(1, 0, 0, Ui.metrics.control),
 		BorderSizePixel = 0,
 		LayoutOrder = 3,
 		Parent = row,
 	})
-	Ui.corner(opener, 8)
+	Ui.corner(opener, Ui.metrics.controlRadius)
 	Ui.field(opener)
 	local current = Ui.label({
 		Text = "",
-		TextSize = 13,
+		TextSize = 12,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		Position = UDim2.fromOffset(10, 0),
 		Size = UDim2.new(1, -32, 1, 0),
@@ -2408,7 +2442,7 @@ function Dropdown.create(tab, config)
 		TextSize = 13,
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -8, 0, 0),
-		Size = UDim2.fromOffset(16, 40),
+		Size = UDim2.fromOffset(16, Ui.metrics.control),
 		TextXAlignment = Enum.TextXAlignment.Right,
 		Parent = opener,
 	})
@@ -2493,7 +2527,7 @@ function Dropdown.create(tab, config)
 		tab.window:closePopup()
 		rows = {}
 		local count = math.max(#values, 1)
-		local itemHeight = 36
+		local itemHeight = Ui.pick(30, 38)
 		local height = math.min(count, 8) * itemHeight
 		local width = math.max(opener.AbsoluteSize.X, 180)
 		local origin = tab.window.gui.AbsolutePosition
@@ -2517,7 +2551,7 @@ function Dropdown.create(tab, config)
 			Size = UDim2.fromScale(1, 1),
 			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
-			ScrollBarThickness = 4,
+			ScrollBarThickness = 3,
 			CanvasSize = UDim2.new(),
 			AutomaticCanvasSize = Enum.AutomaticSize.Y,
 			Parent = menu,
@@ -2530,7 +2564,7 @@ function Dropdown.create(tab, config)
 				AutoButtonColor = false,
 				Text = (selected and "✓  " or "    ") .. text,
 				Font = Enum.Font.Gotham,
-				TextSize = 13,
+				TextSize = 12,
 				TextTruncate = Enum.TextTruncate.AtEnd,
 				TextXAlignment = Enum.TextXAlignment.Left,
 				Size = UDim2.new(1, 0, 0, itemHeight),
@@ -2609,22 +2643,21 @@ local Players = game:GetService("Players")
 
 local GameInfo = {}
 
-local PAD = 16
-local ROW = 28
-local KEY_WIDTH = 74
+local PAD = 12
+local ROW = 22
+local KEY_WIDTH = 62
 
 function GameInfo.create(tab, config)
 	local supported = Games.supported(config.supportedGames)
 	local card = Ui.box(tab.page, tab:nextOrder())
 	card.Name = "GameInfo"
 	Ui.padding(card, PAD)
-	Ui.list(card, 4)
+	Ui.list(card, 2)
 
 	local header = Ui.sectionHeader(card, "info", config.title or "Game Info", {
 		LayoutOrder = 1,
-		Size = UDim2.new(1, 0, 0, 24),
+		Size = UDim2.new(1, 0, 0, 22),
 	})
-	header.Size = UDim2.new(1, 0, 0, 34)
 
 	local order = 1
 	local function line(key)
@@ -2647,7 +2680,7 @@ function GameInfo.create(tab, config)
 			Text = ":",
 			TextSize = 12,
 			Position = UDim2.fromOffset(KEY_WIDTH, 0),
-			Size = UDim2.new(0, 12, 1, 0),
+			Size = UDim2.new(0, 10, 1, 0),
 			Parent = holder,
 		})
 		Theme.paint(colon, "TextColor3", "muted")
@@ -2655,8 +2688,8 @@ function GameInfo.create(tab, config)
 			Text = "",
 			TextSize = 12,
 			TextTruncate = Enum.TextTruncate.AtEnd,
-			Position = UDim2.fromOffset(KEY_WIDTH + 14, 0),
-			Size = UDim2.new(1, -(KEY_WIDTH + 14), 1, 0),
+			Position = UDim2.fromOffset(KEY_WIDTH + 12, 0),
+			Size = UDim2.new(1, -(KEY_WIDTH + 12), 1, 0),
 			Parent = holder,
 		})
 		Theme.paint(value, "TextColor3", "text")
@@ -2674,14 +2707,14 @@ function GameInfo.create(tab, config)
 	kind.Text = "Game"
 	local tone = supported and "success" or "warning"
 	status.Text = supported and "Supported" or "Not supported"
-	status.Position = UDim2.fromOffset(KEY_WIDTH + 30, 0)
-	status.Size = UDim2.new(1, -(KEY_WIDTH + 30), 1, 0)
+	status.Position = UDim2.fromOffset(KEY_WIDTH + 26, 0)
+	status.Size = UDim2.new(1, -(KEY_WIDTH + 26), 1, 0)
 	Theme.paint(status, "TextColor3", tone)
 	local dot = Ui.inst("Frame", {
 		Name = "Dot",
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, KEY_WIDTH + 14, 0.5, 0),
-		Size = UDim2.fromOffset(8, 8),
+		Position = UDim2.new(0, KEY_WIDTH + 12, 0.5, 0),
+		Size = UDim2.fromOffset(7, 7),
 		BorderSizePixel = 0,
 		Parent = statusRow,
 	})
@@ -2733,18 +2766,18 @@ local Games = require("Games")
 
 local GamesList = {}
 
-local ROW = 64
-local THUMB = 44
+local ROW = 48
+local THUMB = 34
 
 function GamesList.create(tab, config)
 	local ids = Games.list(config.supportedGames)
 	local card = Ui.box(tab.page, tab:nextOrder())
 	card.Name = "Games"
-	Ui.padding(card, 16)
-	Ui.list(card, 8)
+	Ui.padding(card, 12)
+	Ui.list(card, 6)
 
 	local header = Ui.sectionHeader(card, "gamepad-2", config.title or "Supported Games", { LayoutOrder = 0 })
-	header.Size = UDim2.new(1, 0, 0, 30)
+	header.Size = UDim2.new(1, 0, 0, 22)
 	Ui.chip(header, tostring(#ids), {
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.fromScale(1, 0.5),
@@ -2764,13 +2797,13 @@ function GamesList.create(tab, config)
 			LayoutOrder = index,
 			Parent = card,
 		})
-		Ui.glass(row, "row", current and 0.25 or 0.55, current and 0.45 or 0.8)
-		Ui.corner(row, 10)
+		Ui.glass(row, "row", current and 0.2 or 0.45, current and 0.4 or 0.75)
+		Ui.corner(row, 8)
 
 		local thumb = Ui.inst("ImageLabel", {
 			Name = "Thumb",
 			AnchorPoint = Vector2.new(0, 0.5),
-			Position = UDim2.new(0, 10, 0.5, 0),
+			Position = UDim2.new(0, 8, 0.5, 0),
 			Size = UDim2.fromOffset(THUMB, THUMB),
 			BorderSizePixel = 0,
 			ScaleType = Enum.ScaleType.Crop,
@@ -2779,16 +2812,16 @@ function GamesList.create(tab, config)
 			Parent = row,
 		})
 		Theme.paint(thumb, "BackgroundColor3", "window")
-		Ui.corner(thumb, 8)
+		Ui.corner(thumb, 6)
 
-		local left = 10 + THUMB + 12
-		local right = current and 96 or 16
+		local left = 8 + THUMB + 10
+		local right = current and 84 or 12
 		local name = Ui.label({
 			Text = tostring(id),
 			Font = Enum.Font.GothamBold,
-			TextSize = 14,
+			TextSize = 13,
 			TextTruncate = Enum.TextTruncate.AtEnd,
-			Position = UDim2.fromOffset(left, 13),
+			Position = UDim2.fromOffset(left, 8),
 			Size = UDim2.new(1, -(left + right), 0, 18),
 			Parent = row,
 		})
@@ -2797,7 +2830,7 @@ function GamesList.create(tab, config)
 			Text = "PlaceId " .. id,
 			TextSize = 11,
 			TextTruncate = Enum.TextTruncate.AtEnd,
-			Position = UDim2.fromOffset(left, 34),
+			Position = UDim2.fromOffset(left, 26),
 			Size = UDim2.new(1, -(left + right), 0, 14),
 			Parent = row,
 		})
@@ -2806,7 +2839,7 @@ function GamesList.create(tab, config)
 		if current then
 			Ui.chip(row, "Playing", {
 				AnchorPoint = Vector2.new(1, 0.5),
-				Position = UDim2.new(1, -12, 0.5, 0),
+				Position = UDim2.new(1, -10, 0.5, 0),
 				token = "success",
 				dot = true,
 			})
@@ -2850,14 +2883,18 @@ function Input.create(tab, config)
 		Text = tostring(config.default or ""),
 		PlaceholderText = config.placeholder or "",
 		Font = Enum.Font.Gotham,
-		TextSize = 14,
-		Size = UDim2.new(1, 0, 0, 40),
+		TextSize = 13,
+		Size = UDim2.new(1, 0, 0, Ui.metrics.control),
 		BorderSizePixel = 0,
 		LayoutOrder = 3,
 		Parent = row,
 	})
-	Ui.corner(box, 8)
-	Ui.padding(box, 8)
+	Ui.corner(box, Ui.metrics.controlRadius)
+	Ui.inst("UIPadding", {
+		PaddingLeft = UDim.new(0, 10),
+		PaddingRight = UDim.new(0, 10),
+		Parent = box,
+	})
 	Ui.field(box)
 	Theme.paint(box, "TextColor3", "text")
 	Theme.paint(box, "PlaceholderColor3", "muted")
@@ -2927,14 +2964,14 @@ local function asKey(value)
 end
 
 function Keybind.create(tab, config)
-	local row = Ui.line(tab.page, tab:nextOrder(), 52)
+	local row = Ui.line(tab.page, tab:nextOrder())
 	local title = Ui.label({
 		Text = config.title or "Keybind",
 		Font = Enum.Font.GothamMedium,
-		TextSize = 14,
+		TextSize = 13,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		Position = UDim2.fromOffset(12, 0),
-		Size = UDim2.new(1, -132, 1, 0),
+		Size = UDim2.new(1, -116, 1, 0),
 		Parent = row,
 	})
 	Theme.paint(title, "TextColor3", "text")
@@ -2942,16 +2979,16 @@ function Keybind.create(tab, config)
 	local chip = Ui.inst("TextButton", {
 		AutoButtonColor = false,
 		Font = Enum.Font.GothamMedium,
-		TextSize = 13,
+		TextSize = 12,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -12, 0.5, 0),
-		Size = UDim2.fromOffset(108, 36),
+		Size = UDim2.fromOffset(96, Ui.pick(28, 34)),
 		BorderSizePixel = 0,
 		Text = "",
 		Parent = row,
 	})
-	Ui.corner(chip, 8)
+	Ui.corner(chip, 6)
 	Ui.field(chip)
 	Theme.paint(chip, "TextColor3", "text")
 
@@ -3058,7 +3095,7 @@ function Paragraph.create(tab, config)
 	Ui.title(row, config.title or "Paragraph", 1)
 	local body = Ui.label({
 		Text = config.content or "",
-		TextSize = 13,
+		TextSize = 12,
 		TextWrapped = true,
 		TextYAlignment = Enum.TextYAlignment.Top,
 		Size = UDim2.new(1, 0, 0, 0),
@@ -3093,9 +3130,13 @@ local Players = game:GetService("Players")
 
 local Profile = {}
 
-local AVATAR = 84
-local HEIGHT = 124
-local BADGE_WIDTH = 112
+local AVATAR = 52
+local AVATAR_NARROW = 44
+local HEIGHT = 86
+local HEIGHT_NARROW = 86
+local BADGE_WIDTH = 96
+local BADGE_HEIGHT = 36
+local NARROW_BELOW = 360
 
 local function round(frame)
 	Ui.inst("UICorner", {
@@ -3105,7 +3146,7 @@ local function round(frame)
 end
 
 local function waves(row)
-	for index, spec in ipairs({ { 0.62, -160, 420, 0.86 }, { 0.72, -120, 360, 0.9 }, { 0.84, -40, 300, 0.93 } }) do
+	for index, spec in ipairs({ { 0.62, -110, 300, 0.86 }, { 0.72, -80, 250, 0.9 }, { 0.84, -30, 200, 0.93 } }) do
 		local wave = Ui.inst("Frame", {
 			Name = "Wave" .. index,
 			AnchorPoint = Vector2.new(0.5, 0),
@@ -3116,7 +3157,7 @@ local function waves(row)
 			Parent = row,
 		})
 		round(wave)
-		Ui.stroke(wave, "accent2", spec[4], 18)
+		Ui.stroke(wave, "accent2", spec[4], 14)
 	end
 end
 
@@ -3124,30 +3165,30 @@ local function badgeCard(row, badge)
 	local card = Ui.inst("Frame", {
 		Name = "Badge",
 		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -16, 0.5, 0),
-		Size = UDim2.fromOffset(BADGE_WIDTH, 48),
-		BackgroundTransparency = 0.82,
+		Position = UDim2.new(1, -12, 0.5, 0),
+		Size = UDim2.fromOffset(BADGE_WIDTH, BADGE_HEIGHT),
+		BackgroundTransparency = 0.8,
 		BorderSizePixel = 0,
 		ZIndex = 2,
 		Parent = row,
 	})
 	Theme.paint(card, "BackgroundColor3", "premium")
-	Ui.corner(card, 10)
+	Ui.corner(card, 8)
 	Ui.stroke(card, "premium", 0.35, 1)
 	Ui.icon(card, "crown", {
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 10, 0.5, 0),
-		Size = UDim2.fromOffset(20, 20),
+		Position = UDim2.new(0, 8, 0.5, 0),
+		Size = UDim2.fromOffset(18, 18),
 		token = "premium",
 		ZIndex = 2,
 	})
 	local title = Ui.label({
 		Text = tostring(badge.title or "Premium"),
 		Font = Enum.Font.GothamBold,
-		TextSize = 14,
+		TextSize = 13,
 		TextTruncate = Enum.TextTruncate.AtEnd,
-		Position = UDim2.fromOffset(38, badge.subtitle and 8 or 0),
-		Size = UDim2.new(1, -44, 0, badge.subtitle and 18 or 48),
+		Position = UDim2.fromOffset(32, badge.subtitle and 4 or 0),
+		Size = UDim2.new(1, -36, 0, badge.subtitle and 16 or BADGE_HEIGHT),
 		ZIndex = 2,
 		Parent = card,
 	})
@@ -3155,10 +3196,10 @@ local function badgeCard(row, badge)
 	if badge.subtitle then
 		local subtitle = Ui.label({
 			Text = tostring(badge.subtitle),
-			TextSize = 11,
+			TextSize = 10,
 			TextTruncate = Enum.TextTruncate.AtEnd,
-			Position = UDim2.fromOffset(38, 26),
-			Size = UDim2.new(1, -44, 0, 14),
+			Position = UDim2.fromOffset(32, 19),
+			Size = UDim2.new(1, -36, 0, 12),
 			ZIndex = 2,
 			Parent = card,
 		})
@@ -3178,7 +3219,7 @@ function Profile.create(tab, config)
 		BorderSizePixel = 0,
 		Parent = row,
 	})
-	Ui.corner(tint, 12)
+	Ui.corner(tint, Ui.metrics.cardRadius)
 	Theme.paint(tint, "BackgroundColor3", "accent2")
 	Ui.inst("UIGradient", {
 		Transparency = NumberSequence.new({
@@ -3193,7 +3234,7 @@ function Profile.create(tab, config)
 	local halo = Ui.inst("Frame", {
 		Name = "Halo",
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 22, 0.5, 0),
+		Position = UDim2.new(0, 14, 0.5, 0),
 		Size = UDim2.fromOffset(AVATAR, AVATAR),
 		BorderSizePixel = 0,
 		ZIndex = 2,
@@ -3206,13 +3247,13 @@ function Profile.create(tab, config)
 		Name = "Ring",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.new(1, 10, 1, 10),
+		Size = UDim2.new(1, 8, 1, 8),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Parent = halo,
 	})
 	round(ring)
-	Ui.stroke(ring, "accent2", 0.55, 3)
+	Ui.stroke(ring, "accent2", 0.55, 2)
 	local headshot = Ui.inst("ImageLabel", {
 		Name = "Headshot",
 		BackgroundTransparency = 1,
@@ -3224,30 +3265,28 @@ function Profile.create(tab, config)
 	round(headshot)
 
 	local badge = type(config.badge) == "table" and badgeCard(row, config.badge)
-	local left = 22 + AVATAR + 22
-	local right = badge and (BADGE_WIDTH + 28) or 16
 	local info = Ui.inst("Frame", {
 		Name = "Info",
-		Position = UDim2.fromOffset(left, 0),
-		Size = UDim2.new(1, -(left + right), 1, 0),
+		Position = UDim2.fromOffset(80, 0),
+		Size = UDim2.new(1, -92, 1, 0),
 		BackgroundTransparency = 1,
 		ZIndex = 2,
 		Parent = row,
 	})
 	local nameRow = Ui.inst("Frame", {
 		Name = "NameRow",
-		Position = UDim2.fromOffset(0, 20),
-		Size = UDim2.new(1, 0, 0, 26),
+		Position = UDim2.fromOffset(0, 10),
+		Size = UDim2.new(1, 0, 0, 22),
 		BackgroundTransparency = 1,
 		ClipsDescendants = true,
 		Parent = info,
 	})
-	local nameLayout = Ui.list(nameRow, 8, Enum.FillDirection.Horizontal)
+	local nameLayout = Ui.list(nameRow, 6, Enum.FillDirection.Horizontal)
 	nameLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 	local name = Ui.label({
 		Text = player and player.DisplayName or "Player",
 		Font = Enum.Font.GothamBold,
-		TextSize = 22,
+		TextSize = 17,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		Size = UDim2.fromScale(1, 1),
 		LayoutOrder = 1,
@@ -3260,9 +3299,9 @@ function Profile.create(tab, config)
 		verified = player.HasVerifiedBadge == true
 	end)
 	if verified then
-		name.Size = UDim2.new(1, -28, 1, 0)
+		name.Size = UDim2.new(1, -22, 1, 0)
 		Ui.icon(nameRow, "badge-check", {
-			Size = UDim2.fromOffset(20, 20),
+			Size = UDim2.fromOffset(16, 16),
 			LayoutOrder = 2,
 			token = "accent",
 			ZIndex = 2,
@@ -3271,64 +3310,84 @@ function Profile.create(tab, config)
 
 	local handle = Ui.label({
 		Text = player and ("@" .. player.Name) or "",
-		TextSize = 14,
+		TextSize = 12,
 		TextTruncate = Enum.TextTruncate.AtEnd,
-		Position = UDim2.fromOffset(0, 48),
-		Size = UDim2.new(1, 0, 0, 18),
+		Position = UDim2.fromOffset(0, 32),
+		Size = UDim2.new(1, 0, 0, 16),
 		ZIndex = 2,
 		Parent = info,
 	})
 	Theme.paint(handle, "TextColor3", "muted")
 	local meta = Ui.label({
 		Text = player and string.format("UserId  %d    •    %d days old", player.UserId, player.AccountAge) or "",
-		TextSize = 12,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		Position = UDim2.fromOffset(0, 70),
-		Size = UDim2.new(1, 0, 0, 16),
-		ZIndex = 2,
-		Parent = info,
-	})
-	Theme.paint(meta, "TextColor3", "muted")
-	local tagline = Ui.label({
-		Text = tostring(config.tagline or ""),
 		TextSize = 11,
 		TextTruncate = Enum.TextTruncate.AtEnd,
-		Position = UDim2.fromOffset(0, 92),
+		Position = UDim2.fromOffset(0, 48),
 		Size = UDim2.new(1, 0, 0, 14),
 		ZIndex = 2,
 		Parent = info,
 	})
+	Theme.paint(meta, "TextColor3", "muted")
+	-- Parented to the row (not the info column) so the narrow layout can start it under the avatar.
+	local tagline = Ui.label({
+		Text = tostring(config.tagline or ""),
+		TextSize = 11,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Position = UDim2.fromOffset(80, 62),
+		Size = UDim2.new(1, -92, 0, 14),
+		ZIndex = 2,
+		Parent = row,
+	})
 	Theme.paint(tagline, "TextColor3", "muted")
-	tagline.TextTransparency = 0.25
+	tagline.TextTransparency = 0.2
 
 	local function layout()
 		local width = row.AbsoluteSize.X
 		if width <= 0 then
 			return
 		end
-		if width < 420 then
-			row.Size = UDim2.new(1, 0, 0, badge and 188 or 140)
-			halo.Position = UDim2.fromOffset(16, 28)
+		if width < NARROW_BELOW then
+			-- Narrow: the badge sits top-right beside the name; meta and tagline use the full width below it.
+			local left = 12 + AVATAR_NARROW + 12
+			local reserve = badge and (BADGE_WIDTH + 8) or 0
+			row.Size = UDim2.new(1, 0, 0, HEIGHT_NARROW)
 			halo.AnchorPoint = Vector2.zero
-			halo.Size = UDim2.fromOffset(64, 64)
-			info.Position = UDim2.fromOffset(96, 0)
-			info.Size = UDim2.new(1, -108, 0, 124)
-			name.TextSize = 18
+			halo.Position = UDim2.fromOffset(12, 10)
+			halo.Size = UDim2.fromOffset(AVATAR_NARROW, AVATAR_NARROW)
+			info.Position = UDim2.fromOffset(left, 0)
+			info.Size = UDim2.new(1, -(left + 12), 1, 0)
+			nameRow.Position = UDim2.fromOffset(0, 8)
+			nameRow.Size = UDim2.new(1, -reserve, 0, 22)
+			name.TextSize = 15
+			handle.Position = UDim2.fromOffset(0, 28)
+			handle.Size = UDim2.new(1, -reserve, 0, 16)
+			meta.Position = UDim2.fromOffset(0, 46)
+			tagline.Position = UDim2.fromOffset(left, 62)
+			tagline.Size = UDim2.new(1, -(left + 12), 0, 14)
 			if badge then
-				badge.AnchorPoint = Vector2.new(1, 1)
-				badge.Position = UDim2.new(1, -12, 1, -10)
+				badge.AnchorPoint = Vector2.new(1, 0)
+				badge.Position = UDim2.new(1, -12, 0, 8)
 			end
 		else
+			local left = 14 + AVATAR + 14
+			local right = badge and (BADGE_WIDTH + 24) or 12
 			row.Size = UDim2.new(1, 0, 0, HEIGHT)
 			halo.AnchorPoint = Vector2.new(0, 0.5)
-			halo.Position = UDim2.new(0, 22, 0.5, 0)
+			halo.Position = UDim2.new(0, 14, 0.5, 0)
 			halo.Size = UDim2.fromOffset(AVATAR, AVATAR)
 			info.Position = UDim2.fromOffset(left, 0)
 			info.Size = UDim2.new(1, -(left + right), 1, 0)
-			name.TextSize = 22
+			nameRow.Position = UDim2.fromOffset(0, 10)
+			nameRow.Size = UDim2.new(1, 0, 0, 22)
+			name.TextSize = 17
+			handle.Position = UDim2.fromOffset(0, 32)
+			handle.Size = UDim2.new(1, 0, 0, 16)
+			meta.Position = UDim2.fromOffset(0, 48)
+			tagline.Position = UDim2.fromOffset(left, 62)
+			tagline.Size = UDim2.new(1, -(left + right), 0, 14)
 			if badge then
 				badge.AnchorPoint = Vector2.new(1, 0.5)
-				badge.Position = UDim2.new(1, -16, 0.5, 0)
+				badge.Position = UDim2.new(1, -12, 0.5, 0)
 			end
 		end
 	end
@@ -3374,14 +3433,14 @@ function Slider.create(tab, config)
 	local row = Ui.card(tab.page, tab:nextOrder())
 	local header = Ui.inst("Frame", {
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 18),
+		Size = UDim2.new(1, 0, 0, 16),
 		LayoutOrder = 1,
 		Parent = row,
 	})
 	local title = Ui.label({
 		Text = config.title or "Slider",
 		Font = Enum.Font.GothamMedium,
-		TextSize = 14,
+		TextSize = 13,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		Size = UDim2.new(1, -56, 1, 0),
 		Parent = header,
@@ -3390,10 +3449,10 @@ function Slider.create(tab, config)
 	local readout = Ui.label({
 		Text = "",
 		Font = Enum.Font.GothamMedium,
-		TextSize = 14,
+		TextSize = 13,
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, 0, 0, 0),
-		Size = UDim2.fromOffset(56, 18),
+		Size = UDim2.fromOffset(56, 16),
 		TextXAlignment = Enum.TextXAlignment.Right,
 		Parent = header,
 	})
@@ -3404,18 +3463,18 @@ function Slider.create(tab, config)
 		AutoButtonColor = false,
 		Text = "",
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 36),
+		Size = UDim2.new(1, 0, 0, Ui.pick(24, 34)),
 		LayoutOrder = 3,
 		Parent = row,
 	})
 	local track = Ui.inst("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, 0, 0.5, 0),
-		Size = UDim2.new(1, 0, 0, 8),
+		Size = UDim2.new(1, 0, 0, 6),
 		BorderSizePixel = 0,
 		Parent = hit,
 	})
-	Ui.corner(track, 4)
+	Ui.corner(track, 3)
 	Theme.paint(track, "BackgroundColor3", "track")
 	local fill = Ui.inst("Frame", {
 		Size = UDim2.new(0, 0, 1, 0),
@@ -3423,18 +3482,18 @@ function Slider.create(tab, config)
 		BorderSizePixel = 0,
 		Parent = track,
 	})
-	Ui.corner(fill, 4)
+	Ui.corner(fill, 3)
 	Ui.gradient(fill, "accent2", "accent", 0)
 	local knob = Ui.inst("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.new(0, 0, 0.5, 0),
-		Size = UDim2.fromOffset(18, 18),
+		Size = UDim2.fromOffset(Ui.pick(14, 18), Ui.pick(14, 18)),
 		BorderSizePixel = 0,
 		Parent = track,
 	})
 	Ui.corner(knob, 9)
 	Theme.paint(knob, "BackgroundColor3", "text")
-	Ui.stroke(knob, "glow", 0.3, 2)
+	Ui.stroke(knob, "glow", 0.3, 1.5)
 
 	local value = math.clamp(config.default or min, min, max)
 	local control = { type = "slider" }
@@ -3525,9 +3584,10 @@ local StatsService = game:GetService("Stats")
 
 local Stats = {}
 
-local CELL_HEIGHT = 84
-local GAP = 10
-local MIN_WIDE_CELL = 118
+local CELL_HEIGHT = 48
+local GAP = Ui.metrics.gap
+local MIN_WIDE_CELL = 112
+local SPARK_HEIGHT = 16
 
 local function clock(seconds)
 	seconds = math.floor(seconds)
@@ -3570,7 +3630,7 @@ function Stats.create(tab, config)
 
 	local function layout()
 		local width = holder.AbsoluteSize.X
-		local columns = width < 340 and 1
+		local columns = width < 260 and 1
 			or (width >= (MIN_WIDE_CELL * 4) + (GAP * 3) and 4 or 2)
 		local rows = math.ceil(4 / columns)
 		grid.CellSize = UDim2.new(1 / columns, -math.ceil(GAP * (columns - 1) / columns) - 1, 0, CELL_HEIGHT)
@@ -3586,47 +3646,56 @@ function Stats.create(tab, config)
 			LayoutOrder = order,
 			Parent = holder,
 		})
-		Ui.glass(cell, "row", 0.45, 0.72)
-		Ui.corner(cell, 12)
+		Ui.glass(cell, "row", 0.3, 0.7)
+		Ui.corner(cell, Ui.metrics.cardRadius)
 		Ui.icon(cell, iconName, {
-			Position = UDim2.fromOffset(14, 14),
-			Size = UDim2.fromOffset(18, 18),
+			Position = UDim2.fromOffset(10, 7),
+			Size = UDim2.fromOffset(15, 15),
 			token = token,
 		})
 		local name = Ui.label({
 			Text = title,
 			Font = Enum.Font.GothamMedium,
-			TextSize = 12,
+			TextSize = 11,
 			TextTruncate = Enum.TextTruncate.AtEnd,
-			Position = UDim2.fromOffset(40, 14),
-			Size = UDim2.new(1, -54, 0, 18),
+			Position = UDim2.fromOffset(30, 6),
+			Size = UDim2.new(1, -(chevron and 54 or 40), 0, 17),
 			Parent = cell,
 		})
 		Theme.paint(name, "TextColor3", "muted")
 		if chevron then
 			Ui.icon(cell, "chevron-right", {
 				AnchorPoint = Vector2.new(1, 0),
-				Position = UDim2.new(1, -10, 0, 40),
-				Size = UDim2.fromOffset(14, 14),
+				Position = UDim2.new(1, -8, 0, 8),
+				Size = UDim2.fromOffset(12, 12),
 				token = "muted",
 			})
 		end
-		local _, push = Ui.sparkline(cell, token, {
+		local spark, push = Ui.sparkline(cell, token, {
 			AnchorPoint = Vector2.new(1, 1),
-			Position = UDim2.new(1, -10, 1, -10),
-			Size = UDim2.new(0.55, 0, 0, 24),
+			Position = UDim2.new(1, -8, 1, -6),
+			Size = UDim2.fromOffset(0, SPARK_HEIGHT),
 		})
 		local value = Ui.label({
 			Text = "--",
 			Font = Enum.Font.GothamBold,
-			TextSize = 22,
+			TextSize = 16,
 			TextTruncate = Enum.TextTruncate.AtEnd,
-			Position = UDim2.fromOffset(14, 40),
-			Size = UDim2.new(1, -28, 0, 26),
+			Position = UDim2.fromOffset(10, 24),
+			Size = UDim2.new(1, -20, 0, 20),
 			ZIndex = 2,
 			Parent = cell,
 		})
 		Theme.paint(value, "TextColor3", "text")
+		-- Keep the sparkline off the value text: it only shows when the cell is wide enough.
+		local function fit()
+			local width = cell.AbsoluteSize.X
+			local sparkWidth = math.min(width * 0.45, width - 104)
+			spark.Visible = sparkWidth >= 28
+			spark.Size = UDim2.fromOffset(math.max(sparkWidth, 0), SPARK_HEIGHT)
+		end
+		cell:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
+		fit()
 		return value, push
 	end
 
@@ -3686,12 +3755,13 @@ local TextService = game:GetService("TextService")
 
 local SystemStatus = {}
 
-local PAD = 14
-local SUMMARY_WIDTH = 168
-local SUMMARY_HEIGHT = 48
-local MIN_ITEM = 92
-local ITEM_HEIGHT = 36
-local GAP = 12
+local PAD = 12
+local SUMMARY_WIDTH = 156
+local SUMMARY_HEIGHT = 40
+local MIN_ITEM = 88
+local ITEM_HEIGHT = 30
+local GAP = 10
+local ROW_GAP = 4
 
 function SystemStatus.create(tab, config)
 	local card = Ui.box(tab.page, tab:nextOrder(), SUMMARY_HEIGHT + PAD * 2)
@@ -3708,7 +3778,7 @@ function SystemStatus.create(tab, config)
 		Name = "Shield",
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.fromScale(0, 0.5),
-		Size = UDim2.fromOffset(42, 42),
+		Size = UDim2.fromOffset(34, 34),
 		BackgroundTransparency = 0.82,
 		BorderSizePixel = 0,
 		Parent = summaryBlock,
@@ -3722,16 +3792,16 @@ function SystemStatus.create(tab, config)
 	Ui.icon(shield, "shield-check", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(22, 22),
+		Size = UDim2.fromOffset(18, 18),
 		token = "accent",
 	})
 	local heading = Ui.label({
 		Text = config.title or "System Status",
 		Font = Enum.Font.GothamBold,
-		TextSize = 14,
+		TextSize = 13,
 		TextTruncate = Enum.TextTruncate.AtEnd,
-		Position = UDim2.fromOffset(52, 4),
-		Size = UDim2.new(1, -52, 0, 18),
+		Position = UDim2.fromOffset(44, 0),
+		Size = UDim2.new(1, -44, 0, 16),
 		Parent = summaryBlock,
 	})
 	Theme.paint(heading, "TextColor3", "text")
@@ -3740,15 +3810,15 @@ function SystemStatus.create(tab, config)
 		TextSize = 11,
 		TextWrapped = true,
 		TextYAlignment = Enum.TextYAlignment.Top,
-		Position = UDim2.fromOffset(52, 24),
-		Size = UDim2.new(1, -52, 0, 26),
+		Position = UDim2.fromOffset(44, 16),
+		Size = UDim2.new(1, -44, 0, 24),
 		Parent = summaryBlock,
 	})
 
 	local divider = Ui.inst("Frame", {
 		Name = "Divider",
 		AnchorPoint = Vector2.new(0, 0.5),
-		Size = UDim2.fromOffset(1, 36),
+		Size = UDim2.fromOffset(1, 28),
 		BackgroundTransparency = 0.8,
 		BorderSizePixel = 0,
 		Parent = card,
@@ -3760,8 +3830,8 @@ function SystemStatus.create(tab, config)
 		chip = Ui.chip(card, tostring(config.version), {
 			AnchorPoint = Vector2.new(1, 0.5),
 			token = "muted",
-			height = 26,
-			textSize = 12,
+			height = 22,
+			textSize = 11,
 		})
 	end
 
@@ -3774,7 +3844,7 @@ function SystemStatus.create(tab, config)
 		end
 		local count = #items
 		local chipWidth = chip and (chip.AbsoluteSize.X + GAP) or 0
-		local summaryWidth = width < 360 and math.max(100, width - chipWidth) or SUMMARY_WIDTH
+		local summaryWidth = width < 330 and math.max(100, width - chipWidth) or SUMMARY_WIDTH
 		summaryBlock.Size = UDim2.fromOffset(summaryWidth, SUMMARY_HEIGHT)
 		local start = PAD + summaryWidth + GAP * 2 + 1
 		local area = width - (start - PAD) - chipWidth
@@ -3802,15 +3872,15 @@ function SystemStatus.create(tab, config)
 			divider.Visible = false
 			local columns = math.max(1, math.min(count, math.floor(width / MIN_ITEM)))
 			local each = width / columns
-			local top = PAD + SUMMARY_HEIGHT + 10
+			local top = PAD + SUMMARY_HEIGHT + 8
 			for index, item in ipairs(items) do
 				local column = (index - 1) % columns
 				local rowIndex = (index - 1) // columns
-				item.frame.Position = UDim2.fromOffset(PAD + column * each, top + rowIndex * (ITEM_HEIGHT + 6))
+				item.frame.Position = UDim2.fromOffset(PAD + column * each, top + rowIndex * (ITEM_HEIGHT + ROW_GAP))
 				item.frame.Size = UDim2.fromOffset(each - 6, ITEM_HEIGHT)
 			end
 			local rows = math.ceil(count / columns)
-			card.Size = UDim2.new(1, 0, 0, top + rows * (ITEM_HEIGHT + 6) - 6 + PAD)
+			card.Size = UDim2.new(1, 0, 0, top + rows * (ITEM_HEIGHT + ROW_GAP) - ROW_GAP + PAD)
 		end
 	end
 
@@ -3854,36 +3924,36 @@ function SystemStatus.create(tab, config)
 		item.icon = Ui.icon(holder, "circle-check", {
 			AnchorPoint = Vector2.new(0, 0.5),
 			Position = UDim2.fromScale(0, 0.5),
-			Size = UDim2.fromOffset(18, 18),
+			Size = UDim2.fromOffset(16, 16),
 			token = "success",
 		})
 		item.alert = Ui.icon(holder, "circle-alert", {
 			AnchorPoint = Vector2.new(0, 0.5),
 			Position = UDim2.fromScale(0, 0.5),
-			Size = UDim2.fromOffset(18, 18),
+			Size = UDim2.fromOffset(16, 16),
 			token = "warning",
 		})
 		item.titleLabel = Ui.label({
 			Font = Enum.Font.GothamMedium,
 			TextSize = 12,
 			TextTruncate = Enum.TextTruncate.AtEnd,
-			Position = UDim2.fromOffset(25, 2),
-			Size = UDim2.new(1, -25, 0, 16),
+			Position = UDim2.fromOffset(22, 1),
+			Size = UDim2.new(1, -22, 0, 14),
 			Parent = holder,
 		})
 		Theme.paint(item.titleLabel, "TextColor3", "text")
 		item.statusLabel = Ui.label({
 			TextSize = 11,
 			TextTruncate = Enum.TextTruncate.AtEnd,
-			Position = UDim2.fromOffset(25, 19),
-			Size = UDim2.new(1, -25, 0, 14),
+			Position = UDim2.fromOffset(22, 15),
+			Size = UDim2.new(1, -22, 0, 14),
 			Parent = holder,
 		})
 		function item.width()
 			local limit = Vector2.new(1000, 100)
 			local titleWidth = TextService:GetTextSize(item.title, 12, Enum.Font.GothamMedium, limit).X
 			local statusWidth = TextService:GetTextSize(item.status, 11, Enum.Font.Gotham, limit).X
-			return 27 + math.max(titleWidth, statusWidth)
+			return 24 + math.max(titleWidth, statusWidth)
 		end
 		table.insert(items, item)
 		paintItem(item)
@@ -3956,15 +4026,20 @@ local Theme = require("Theme")
 
 local Toggle = {}
 
+local TRACK_WIDTH = Ui.pick(40, 46)
+local TRACK_HEIGHT = Ui.pick(22, 26)
+local KNOB = TRACK_HEIGHT - 6
+local KNOB_INSET = 3
+
 function Toggle.create(tab, config)
-	local row = Ui.line(tab.page, tab:nextOrder(), 52)
+	local row = Ui.line(tab.page, tab:nextOrder())
 	local title = Ui.label({
 		Text = config.title or "Toggle",
 		Font = Enum.Font.GothamMedium,
-		TextSize = 14,
+		TextSize = 13,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		Position = UDim2.fromOffset(12, 0),
-		Size = UDim2.new(1, -78, 1, 0),
+		Size = UDim2.new(1, -(TRACK_WIDTH + 36), 1, 0),
 		Parent = row,
 	})
 	Theme.paint(title, "TextColor3", "text")
@@ -3974,21 +4049,21 @@ function Toggle.create(tab, config)
 		Text = "",
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -12, 0.5, 0),
-		Size = UDim2.fromOffset(50, 30),
+		Size = UDim2.fromOffset(TRACK_WIDTH, TRACK_HEIGHT),
 		BorderSizePixel = 0,
 		Parent = row,
 	})
-	Ui.corner(track, 15)
+	Ui.corner(track, TRACK_HEIGHT // 2)
 	local shine = Ui.gradient(track, "accent", "accent2", 0)
 	local stroke = Ui.stroke(track, "glow", 0.7, 1)
 
 	local knob = Ui.inst("Frame", {
-		Size = UDim2.fromOffset(20, 20),
+		Size = UDim2.fromOffset(KNOB, KNOB),
 		BorderSizePixel = 0,
-		Position = UDim2.fromOffset(5, 5),
+		Position = UDim2.fromOffset(KNOB_INSET, KNOB_INSET),
 		Parent = track,
 	})
-	Ui.corner(knob, 10)
+	Ui.corner(knob, KNOB // 2)
 
 	local enabled = config.default == true
 	local control = { type = "toggle" }
@@ -3998,7 +4073,7 @@ function Toggle.create(tab, config)
 		track.BackgroundColor3 = enabled and Color3.new(1, 1, 1) or Theme.color("track")
 		stroke.Transparency = enabled and 0.3 or 0.7
 		knob.BackgroundColor3 = enabled and Theme.color("accentText") or Theme.color("muted")
-		Ui.tween(knob, { Position = UDim2.fromOffset(enabled and 25 or 5, 5) }, 0.14)
+		Ui.tween(knob, { Position = UDim2.fromOffset(enabled and (TRACK_WIDTH - KNOB - KNOB_INSET) or KNOB_INSET, KNOB_INSET) }, 0.14)
 	end
 
 	function control:get()
@@ -4046,17 +4121,25 @@ local UserInputService = game:GetService("UserInputService")
 
 local Window = {}
 
-local SIDEBAR_WIDTH = 176
+local SIDEBAR_WIDTH = 140
 local COMPACT_WIDTH = 60
-local COMPACT_BELOW = 700
+local COMPACT_BELOW = 620
 local PHONE_BELOW = 600
 local TABLET_BELOW = 1000
 local SCREEN_MARGIN = 8
-local HEADER_HEIGHT = 72
+local HEADER_HEIGHT = 60
 local TOP_HEIGHT = 40
-local FOOTER_HEIGHT = 30
-local AVATAR_HEIGHT = 66
-local AVATAR_SIZE = 40
+local FOOTER_HEIGHT = 24
+local AVATAR_HEIGHT = 56
+local AVATAR_COMPACT_HEIGHT = 44
+local AVATAR_SIZE = 28
+local AVATAR_MARGIN = 8
+local DEFAULT_SIZE = Vector2.new(680, 520)
+local BAR_BUTTON = Ui.pick(30, 36)
+local BAR_GAP = 4
+local BAR_BUTTONS = 4
+local BAR_WIDTH = BAR_BUTTONS * BAR_BUTTON + (BAR_BUTTONS - 1) * BAR_GAP
+local BAR_INSET = 8
 
 local function asKey(value)
 	if typeof(value) == "EnumItem" and value.EnumType == Enum.KeyCode then
@@ -4078,7 +4161,11 @@ local function asVector(value, fallback)
 	return fallback
 end
 
-local function viewportSize()
+local function viewportSize(gui)
+	-- Prefer the ScreenGui area (respects device-safe insets); fall back to the camera viewport.
+	if gui and gui.AbsoluteSize.X >= 200 and gui.AbsoluteSize.Y >= 200 then
+		return gui.AbsoluteSize
+	end
 	local camera = workspace.CurrentCamera
 	return camera and camera.ViewportSize or Vector2.new(1280, 720)
 end
@@ -4091,9 +4178,9 @@ local function isMove(input)
 	return input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch
 end
 
-local function startSize(config, minSize)
-	local size = config.size or UDim2.fromOffset(1020, 640)
-	local viewport = viewportSize()
+local function startSize(config, minSize, gui)
+	local size = config.size or UDim2.fromOffset(DEFAULT_SIZE.X, DEFAULT_SIZE.Y)
+	local viewport = viewportSize(gui)
 	if viewport.X < 200 or viewport.Y < 200 then
 		return size
 	end
@@ -4130,25 +4217,24 @@ local function avatarCard(sidebar)
 	local card = Ui.inst("Frame", {
 		Name = "Avatar",
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -10),
-		Size = UDim2.new(1, -20, 0, AVATAR_HEIGHT),
+		Position = UDim2.new(0.5, 0, 1, -AVATAR_MARGIN),
+		Size = UDim2.new(1, -AVATAR_MARGIN * 2, 0, AVATAR_HEIGHT),
 		BorderSizePixel = 0,
 		Parent = sidebar,
 	})
-	Ui.glass(card, "row", 0.45, 0.72)
-	Ui.corner(card, 12)
+	Ui.glass(card, "row", 0.35, 0.72)
+	Ui.corner(card, 10)
 
 	local halo = Ui.inst("Frame", {
 		Name = "Portrait",
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 12, 0.5, 0),
+		Position = UDim2.fromOffset(8, 7),
 		Size = UDim2.fromOffset(AVATAR_SIZE, AVATAR_SIZE),
 		BorderSizePixel = 0,
 		Parent = card,
 	})
 	Theme.paint(halo, "BackgroundColor3", "window")
 	round(halo)
-	Ui.stroke(halo, "glow", 0.2, 2)
+	Ui.stroke(halo, "glow", 0.2, 1.5)
 	local image = Ui.inst("ImageLabel", {
 		Name = "Image",
 		BackgroundTransparency = 1,
@@ -4158,37 +4244,19 @@ local function avatarCard(sidebar)
 	})
 	round(image)
 
-	local left = 12 + AVATAR_SIZE + 10
+	-- Status + handle sit beside the portrait; the (longer) display name gets its own full-width line.
+	local left = 8 + AVATAR_SIZE + 8
 	local info = Ui.inst("Frame", {
 		Name = "Info",
-		Position = UDim2.fromOffset(left, 0),
-		Size = UDim2.new(1, -(left + 8), 1, 0),
+		Position = UDim2.fromOffset(left, 7),
+		Size = UDim2.new(1, -(left + 6), 0, AVATAR_SIZE),
 		BackgroundTransparency = 1,
 		Parent = card,
 	})
-	local name = Ui.label({
-		Text = player and player.DisplayName or "Player",
-		Font = Enum.Font.GothamBold,
-		TextSize = 13,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		Position = UDim2.fromOffset(0, 10),
-		Size = UDim2.new(1, 0, 0, 16),
-		Parent = info,
-	})
-	Theme.paint(name, "TextColor3", "text")
-	local handle = Ui.label({
-		Text = player and ("@" .. player.Name) or "",
-		TextSize = 11,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		Position = UDim2.fromOffset(0, 26),
-		Size = UDim2.new(1, 0, 0, 14),
-		Parent = info,
-	})
-	Theme.paint(handle, "TextColor3", "muted")
 	local dot = Ui.inst("Frame", {
 		Name = "Online",
-		Position = UDim2.fromOffset(0, 46),
-		Size = UDim2.fromOffset(7, 7),
+		Position = UDim2.fromOffset(0, 5),
+		Size = UDim2.fromOffset(6, 6),
 		BorderSizePixel = 0,
 		Parent = info,
 	})
@@ -4196,23 +4264,45 @@ local function avatarCard(sidebar)
 	Theme.paint(dot, "BackgroundColor3", "success")
 	local online = Ui.label({
 		Text = "Online",
-		TextSize = 11,
-		Position = UDim2.fromOffset(12, 42),
-		Size = UDim2.new(1, -12, 0, 14),
+		TextSize = 10,
+		Position = UDim2.fromOffset(11, 0),
+		Size = UDim2.new(1, -11, 0, 14),
 		Parent = info,
 	})
 	Theme.paint(online, "TextColor3", "muted")
+	local handle = Ui.label({
+		Text = player and ("@" .. player.Name) or "",
+		TextSize = 10,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Position = UDim2.fromOffset(0, 14),
+		Size = UDim2.new(1, 0, 0, 14),
+		Parent = info,
+	})
+	Theme.paint(handle, "TextColor3", "muted")
+
+	local name = Ui.label({
+		Name = "Name",
+		Text = player and player.DisplayName or "Player",
+		Font = Enum.Font.GothamBold,
+		TextSize = 12,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Position = UDim2.fromOffset(8, 7 + AVATAR_SIZE + 3),
+		Size = UDim2.new(1, -16, 0, 14),
+		Parent = card,
+	})
+	Theme.paint(name, "TextColor3", "text")
 
 	return function(compact)
 		info.Visible = not compact
+		name.Visible = not compact
 		if compact then
 			halo.AnchorPoint = Vector2.new(0.5, 0.5)
 			halo.Position = UDim2.fromScale(0.5, 0.5)
-			card.Size = UDim2.new(1, -12, 0, AVATAR_HEIGHT)
+			card.Size = UDim2.new(1, -12, 0, AVATAR_COMPACT_HEIGHT)
 		else
-			halo.AnchorPoint = Vector2.new(0, 0.5)
-			halo.Position = UDim2.new(0, 12, 0.5, 0)
-			card.Size = UDim2.new(1, -20, 0, AVATAR_HEIGHT)
+			halo.AnchorPoint = Vector2.zero
+			halo.Position = UDim2.fromOffset(8, 7)
+			card.Size = UDim2.new(1, -AVATAR_MARGIN * 2, 0, AVATAR_HEIGHT)
 		end
 	end
 end
@@ -4247,7 +4337,7 @@ local function barButton(parent, iconName, order, hoverToken)
 		Name = iconName,
 		AutoButtonColor = false,
 		Text = "",
-		Size = UDim2.fromOffset(34, 34),
+		Size = UDim2.fromOffset(BAR_BUTTON, BAR_BUTTON),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		LayoutOrder = order,
@@ -4258,11 +4348,11 @@ local function barButton(parent, iconName, order, hoverToken)
 	local icon = Ui.icon(button, iconName, {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(16, 16),
+		Size = UDim2.fromOffset(15, 15),
 		token = "muted",
 	})
 	button.MouseEnter:Connect(function()
-		Ui.tween(button, { BackgroundTransparency = hoverToken and 0.2 or 0.4 }, 0.12)
+		Ui.tween(button, { BackgroundTransparency = hoverToken and 0.2 or 0.3 }, 0.12)
 	end)
 	button.MouseLeave:Connect(function()
 		Ui.tween(button, { BackgroundTransparency = 1 }, 0.12)
@@ -4286,7 +4376,7 @@ function Window.create(config, version)
 		Name = "Shell",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = startSize(config, minSize),
+		Size = startSize(config, minSize, gui),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Parent = gui,
@@ -4300,7 +4390,7 @@ function Window.create(config, version)
 			ZIndex = 0,
 			Parent = shell,
 		})
-		Ui.corner(glow, 14)
+		Ui.corner(glow, 12)
 		Ui.stroke(glow, "glow", layer[2], layer[1])
 	end
 
@@ -4308,7 +4398,7 @@ function Window.create(config, version)
 		Name = "Window",
 		Size = UDim2.fromScale(1, 1),
 		BackgroundColor3 = Color3.new(1, 1, 1),
-		BackgroundTransparency = 0.04,
+		BackgroundTransparency = 0.02,
 		BorderSizePixel = 0,
 		ClipsDescendants = true,
 		Active = true,
@@ -4316,7 +4406,7 @@ function Window.create(config, version)
 		Parent = shell,
 	})
 	Ui.gradient(frame, "bar", "window", 90)
-	Ui.corner(frame, 14)
+	Ui.corner(frame, 12)
 	Ui.stroke(frame, "glow", 0.35, 1)
 
 	local sidebar = Ui.inst("Frame", {
@@ -4330,18 +4420,18 @@ function Window.create(config, version)
 	local backdrop = Ui.inst("Frame", {
 		Name = "Backdrop",
 		Size = UDim2.new(1, 16, 1, 0),
-		BackgroundTransparency = 0.35,
+		BackgroundTransparency = 0.2,
 		BorderSizePixel = 0,
 		Parent = sidebar,
 	})
-	Ui.corner(backdrop, 14)
+	Ui.corner(backdrop, 12)
 	Theme.paint(backdrop, "BackgroundColor3", "rail")
 	local edge = Ui.inst("Frame", {
 		Name = "Edge",
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.fromScale(1, 0),
 		Size = UDim2.new(0, 1, 1, 0),
-		BackgroundTransparency = 0.82,
+		BackgroundTransparency = 0.8,
 		BorderSizePixel = 0,
 		Parent = sidebar,
 	})
@@ -4358,32 +4448,32 @@ function Window.create(config, version)
 	local logo = Ui.icon(header, "logo", {
 		Name = "Logo",
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 16, 0.5, 0),
-		Size = UDim2.fromOffset(34, 34),
+		Position = UDim2.new(0, 12, 0, 21),
+		Size = UDim2.fromOffset(26, 26),
 	})
 	local brand = Ui.inst("Frame", {
 		Name = "Brand",
-		Position = UDim2.fromOffset(58, 0),
-		Size = UDim2.new(1, -62, 1, 0),
+		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
 		Parent = header,
 	})
 	local titleLabel = Ui.label({
 		Text = title,
 		Font = Enum.Font.GothamBold,
-		TextSize = 18,
+		TextSize = 17,
 		TextTruncate = Enum.TextTruncate.AtEnd,
-		Position = UDim2.fromOffset(0, 18),
-		Size = UDim2.new(1, 0, 0, 20),
+		Position = UDim2.fromOffset(46, 8),
+		Size = UDim2.new(1, -54, 0, 26),
 		Parent = brand,
 	})
 	Theme.paint(titleLabel, "TextColor3", "text")
+	-- The subtitle gets its own full-width row so it is not squeezed beside the logo.
 	local subtitle = Ui.label({
 		Text = config.subtitle or "",
-		TextSize = 11,
+		TextSize = 10,
 		TextTruncate = Enum.TextTruncate.AtEnd,
-		Position = UDim2.fromOffset(0, 39),
-		Size = UDim2.new(1, 0, 0, 14),
+		Position = UDim2.fromOffset(12, 38),
+		Size = UDim2.new(1, -20, 0, 14),
 		Parent = brand,
 	})
 	Theme.paint(subtitle, "TextColor3", "muted")
@@ -4392,7 +4482,7 @@ function Window.create(config, version)
 	local rail = Ui.inst("ScrollingFrame", {
 		Name = "Tabs",
 		Position = UDim2.fromOffset(0, HEADER_HEIGHT),
-		Size = UDim2.new(1, 0, 1, -(HEADER_HEIGHT + (showAvatar and (AVATAR_HEIGHT + 20) or 0))),
+		Size = UDim2.new(1, 0, 1, -(HEADER_HEIGHT + (showAvatar and (AVATAR_HEIGHT + AVATAR_MARGIN * 2) or 0))),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		ScrollBarThickness = 2,
@@ -4402,7 +4492,7 @@ function Window.create(config, version)
 		Parent = sidebar,
 	})
 	Theme.paint(rail, "ScrollBarImageColor3", "accent")
-	local railLayout = Ui.list(rail, 6)
+	local railLayout = Ui.list(rail, 4)
 	railLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	Ui.inst("UIPadding", {
 		PaddingTop = UDim.new(0, 6),
@@ -4430,18 +4520,18 @@ function Window.create(config, version)
 		AutoButtonColor = false,
 		Text = "",
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, -166, 1, 0),
+		Size = UDim2.new(1, -(BAR_WIDTH + BAR_INSET + 6), 1, 0),
 		Parent = topBar,
 	})
 	local buttons = Ui.inst("Frame", {
 		Name = "Buttons",
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -10, 0, 0),
-		Size = UDim2.new(0, 156, 1, 0),
+		Position = UDim2.new(1, -BAR_INSET, 0, 0),
+		Size = UDim2.new(0, BAR_WIDTH, 1, 0),
 		BackgroundTransparency = 1,
 		Parent = topBar,
 	})
-	local buttonLayout = Ui.list(buttons, 4, Enum.FillDirection.Horizontal)
+	local buttonLayout = Ui.list(buttons, BAR_GAP, Enum.FillDirection.Horizontal)
 	buttonLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
 	buttonLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 	local bell = barButton(buttons, "bell", 1)
@@ -4450,7 +4540,7 @@ function Window.create(config, version)
 	local shrinkIcon = Ui.icon(maximize, "copy", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(15, 15),
+		Size = UDim2.fromOffset(14, 14),
 		token = "muted",
 	})
 	shrinkIcon.frame.Visible = false
@@ -4489,8 +4579,8 @@ function Window.create(config, version)
 		TextSize = 11,
 		RichText = true,
 		TextTruncate = Enum.TextTruncate.AtEnd,
-		Position = UDim2.fromOffset(16, 0),
-		Size = UDim2.new(0.5, -16, 1, 0),
+		Position = UDim2.fromOffset(12, 0),
+		Size = UDim2.new(0.5, -12, 1, 0),
 		Parent = footer,
 	})
 	Theme.paint(footerLeft, "TextColor3", "muted")
@@ -4826,13 +4916,13 @@ function Window.create(config, version)
 			logo.frame.Position = UDim2.fromScale(0.5, 0.5)
 		else
 			logo.frame.AnchorPoint = Vector2.new(0, 0.5)
-			logo.frame.Position = UDim2.new(0, 16, 0.5, 0)
+			logo.frame.Position = UDim2.new(0, 12, 0, 21)
 		end
 		if layoutAvatar then
 			layoutAvatar(compact)
 		end
 		footerRight.Visible = breakpoint ~= "phone"
-		footerLeft.Size = breakpoint == "phone" and UDim2.new(1, -32, 1, 0) or UDim2.new(0.5, -16, 1, 0)
+		footerLeft.Size = breakpoint == "phone" and UDim2.new(1, -24, 1, 0) or UDim2.new(0.5, -12, 1, 0)
 		for _, tab in ipairs(window.tabs) do
 			tab:layout(compact, breakpoint)
 		end
