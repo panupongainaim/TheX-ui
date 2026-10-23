@@ -107,6 +107,7 @@ local Ui = require("Ui")
 local Dialog = {}
 
 function Dialog.open(parent, config)
+	local cardWidth = math.min(340, math.max(1, parent.AbsoluteSize.X - 24))
 	local overlay = Ui.inst("TextButton", {
 		Name = "Dialog",
 		AutoButtonColor = false,
@@ -123,7 +124,7 @@ function Dialog.open(parent, config)
 		Name = "Card",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(340, 0),
+		Size = UDim2.fromOffset(cardWidth, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BorderSizePixel = 0,
 		ZIndex = 9,
@@ -137,6 +138,7 @@ function Dialog.open(parent, config)
 		Text = config.title or "Dialog",
 		Font = Enum.Font.GothamMedium,
 		TextSize = 16,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		Size = UDim2.new(1, 0, 0, 20),
 		LayoutOrder = 1,
 		ZIndex = 9,
@@ -166,7 +168,7 @@ function Dialog.open(parent, config)
 
 	local row = Ui.inst("Frame", {
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 34),
+		Size = UDim2.new(1, 0, 0, 40),
 		LayoutOrder = 3,
 		ZIndex = 9,
 		Parent = card,
@@ -185,17 +187,20 @@ function Dialog.open(parent, config)
 		end
 	end
 
+	local gap = 8
+	local buttonWidth = math.min(108, math.max(1, (cardWidth - 28 - gap * (#buttons - 1)) / #buttons))
 	for index, spec in ipairs(buttons) do
 		local button
 		if index == 1 then
-			button = Ui.accentButton(row, spec.title or "OK", UDim2.fromOffset(108, 34), index)
+			button = Ui.accentButton(row, spec.title or "OK", UDim2.fromOffset(buttonWidth, 40), index)
 		else
 			button = Ui.inst("TextButton", {
 				AutoButtonColor = false,
 				Text = spec.title or "OK",
 				Font = Enum.Font.GothamMedium,
 				TextSize = 14,
-				Size = UDim2.fromOffset(108, 34),
+				TextTruncate = Enum.TextTruncate.AtEnd,
+				Size = UDim2.fromOffset(buttonWidth, 40),
 				BorderSizePixel = 0,
 				LayoutOrder = index,
 				ZIndex = 10,
@@ -540,6 +545,15 @@ function Notify.mount()
 	})
 	Ui.list(holder, 8)
 	holder.Name = "Holder"
+	local function fit()
+		local viewport = gui.AbsoluteSize
+		local margin = viewport.X < 600 and 8 or 18
+		local width = math.min(300, math.max(1, viewport.X - margin * 2))
+		holder.Position = UDim2.new(1, -margin, 0, margin)
+		holder.Size = UDim2.fromOffset(width, 0)
+	end
+	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
+	fit()
 	return gui
 end
 
@@ -819,7 +833,7 @@ function Tab.create(window, config)
 		Parent = window.pages,
 	})
 	Theme.paint(page, "ScrollBarImageColor3", "accent")
-	Ui.inst("UIPadding", {
+	local pagePadding = Ui.inst("UIPadding", {
 		PaddingTop = UDim.new(0, 4),
 		PaddingBottom = UDim.new(0, 12),
 		PaddingLeft = UDim.new(0, 12),
@@ -843,17 +857,21 @@ function Tab.create(window, config)
 		icon:color(Theme.color(self.selected and "accentText" or (self.hovered and "text") or "muted"))
 	end
 
-	function tab:layout(compact)
+	function tab:layout(compact, breakpoint)
+		local phone = breakpoint == "phone"
 		label.Visible = not compact
 		if compact then
 			icon.frame.AnchorPoint = Vector2.new(0.5, 0.5)
 			icon.frame.Position = UDim2.fromScale(0.5, 0.5)
-			button.Size = UDim2.new(1, -12, 0, 40)
+			button.Size = UDim2.new(1, -12, 0, phone and 46 or 42)
 		else
 			icon.frame.AnchorPoint = Vector2.new(0, 0.5)
 			icon.frame.Position = UDim2.new(0, 14, 0.5, 0)
-			button.Size = UDim2.new(1, -20, 0, 40)
+			button.Size = UDim2.new(1, -20, 0, 42)
 		end
+		local padding = phone and 8 or 12
+		pagePadding.PaddingLeft = UDim.new(0, padding)
+		pagePadding.PaddingRight = UDim.new(0, padding)
 	end
 
 	button.MouseButton1Click:Connect(function()
@@ -872,7 +890,7 @@ function Tab.create(window, config)
 			tab:paint()
 		end
 	end)
-	tab:layout(window.compact)
+	tab:layout(window.compact, window.breakpoint)
 	tab:paint()
 	return tab
 end
@@ -1516,6 +1534,7 @@ function Ui.title(parent, text, order)
 		Text = text or "",
 		Font = Enum.Font.GothamMedium,
 		TextSize = 14,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		Size = UDim2.new(1, 0, 0, 18),
 		LayoutOrder = order or 1,
 		Parent = parent,
@@ -1542,6 +1561,17 @@ function Ui.note(parent, text, order)
 	return label
 end
 
+function Ui.clampRect(viewport, width, height, x, y, margin)
+	margin = math.max(0, tonumber(margin) or 8)
+	local availableWidth = math.max(1, viewport.X - margin * 2)
+	local availableHeight = math.max(1, viewport.Y - margin * 2)
+	width = math.min(math.max(1, width), availableWidth)
+	height = math.min(math.max(1, height), availableHeight)
+	x = math.clamp(x or margin, margin, math.max(margin, viewport.X - width - margin))
+	y = math.clamp(y or margin, margin, math.max(margin, viewport.Y - height - margin))
+	return Vector2.new(x, y), Vector2.new(width, height)
+end
+
 function Ui.screen(name, displayOrder)
 	local players = game:GetService("Players")
 	local player = players.LocalPlayer or players.PlayerAdded:Wait()
@@ -1563,6 +1593,10 @@ function Ui.screen(name, displayOrder)
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		Parent = parent,
 	})
+	pcall(function()
+		gui.ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets
+		gui.ClipToDeviceSafeArea = true
+	end)
 
 	local protect = (type(protectgui) == "function" and protectgui) or (syn and syn.protect_gui)
 	if protect then
@@ -1783,6 +1817,7 @@ function Brand.create(tab, config)
 	local title = Ui.label({
 		Text = config.title or "TheX",
 		TextSize = 30,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0, 14),
@@ -1796,6 +1831,7 @@ function Brand.create(tab, config)
 	local tagline = Ui.label({
 		Text = config.tagline or "More than just a script.",
 		TextSize = 12,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0, 52),
@@ -1821,6 +1857,18 @@ function Brand.create(tab, config)
 		NumberSequenceKeypoint.new(0.4, 0.2),
 		NumberSequenceKeypoint.new(1, 0.9),
 	})
+
+	local function layout()
+		local width = card.AbsoluteSize.X
+		if width <= 0 then
+			return
+		end
+		local markSize = math.clamp(width * 0.32, 72, 110)
+		mark.frame.Size = UDim2.fromOffset(markSize, markSize)
+		title.TextSize = width < 320 and 24 or 30
+	end
+	card:GetPropertyChangedSignal("AbsoluteSize"):Connect(layout)
+	layout()
 
 	return {
 		type = "brand",
@@ -1961,12 +2009,13 @@ function Colorpicker.create(tab, config)
 	local allowAlpha = config.transparency == true
 	local color = typeof(config.default) == "Color3" and config.default or Color3.fromRGB(214, 146, 58)
 	local alpha = 0
-	local row = Ui.line(tab.page, tab:nextOrder(), config.description and 64 or 48)
+	local row = Ui.line(tab.page, tab:nextOrder(), config.description and 68 or 52)
 
 	local title = Ui.label({
 		Text = config.title or "Color",
 		Font = Enum.Font.GothamMedium,
 		TextSize = 14,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		Position = UDim2.fromOffset(12, config.description and 8 or 0),
 		Size = UDim2.new(1, -64, 0, config.description and 18 or 48),
 		Parent = row,
@@ -1976,6 +2025,7 @@ function Colorpicker.create(tab, config)
 		local note = Ui.label({
 			Text = config.description,
 			TextSize = 12,
+			TextTruncate = Enum.TextTruncate.AtEnd,
 			Position = UDim2.fromOffset(12, 30),
 			Size = UDim2.new(1, -64, 0, 18),
 			Parent = row,
@@ -1988,7 +2038,7 @@ function Colorpicker.create(tab, config)
 		Text = "",
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -12, 0.5, 0),
-		Size = UDim2.fromOffset(28, 28),
+		Size = UDim2.fromOffset(36, 36),
 		BorderSizePixel = 0,
 		Parent = row,
 	})
@@ -2038,10 +2088,15 @@ function Colorpicker.create(tab, config)
 		local origin = tab.window.gui.AbsolutePosition
 		local x = swatch.AbsolutePosition.X - origin.X - 180
 		local y = swatch.AbsolutePosition.Y - origin.Y + swatch.AbsoluteSize.Y + 6
+		local viewport = tab.window.gui.AbsoluteSize
+		if y + height > viewport.Y - 8 then
+			y = swatch.AbsolutePosition.Y - origin.Y - height - 6
+		end
+		local position, size = tab.window:popupBounds(220, height, x, y)
 		local panel = Ui.inst("Frame", {
 			Name = "ColorPanel",
-			Position = UDim2.fromOffset(math.max(8, x), y),
-			Size = UDim2.fromOffset(220, height),
+			Position = UDim2.fromOffset(position.X, position.Y),
+			Size = UDim2.fromOffset(size.X, size.Y),
 			BorderSizePixel = 0,
 		})
 		Ui.panel(panel)
@@ -2114,12 +2169,12 @@ function CurrentMap.create(tab, config)
 	local row = Ui.box(tab.page, tab:nextOrder(), top + COVER + PAD)
 	row.Name = "CurrentMap"
 
-	local header = Ui.sectionHeader(row, "gamepad-2", config.title or "Current Map", {
+	local header, headerLabel = Ui.sectionHeader(row, "gamepad-2", config.title or "Current Map", {
 		Position = UDim2.fromOffset(PAD, PAD),
 		Size = UDim2.new(1, -(PAD * 2), 0, HEADER),
 	})
 	local tone = supported and "success" or "warning"
-	Ui.chip(header, supported and "Supported" or "Not supported", {
+	local supportChip = Ui.chip(header, supported and "Supported" or "Not supported", {
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.fromScale(1, 0.5),
 		token = tone,
@@ -2164,7 +2219,6 @@ function CurrentMap.create(tab, config)
 		Text = "",
 		TextSize = 12,
 		TextWrapped = true,
-		TextTruncate = Enum.TextTruncate.AtEnd,
 		TextYAlignment = Enum.TextYAlignment.Top,
 		Position = UDim2.fromOffset(left, top + 52),
 		Size = UDim2.new(1, -(left + PAD), 0, 32),
@@ -2199,14 +2253,70 @@ function CurrentMap.create(tab, config)
 	})
 	Theme.paint(updated, "TextColor3", "muted")
 
+	local loadHolder
 	if hasLoad then
-		local button, _, holder = Ui.accentButton(row, config.loadText or "Load Script", UDim2.fromOffset(BUTTON_WIDTH, 40), nil, "play")
-		holder.AnchorPoint = Vector2.new(1, 1)
-		holder.Position = UDim2.new(1, -PAD, 0, top + COVER)
+		local button
+		button, _, loadHolder = Ui.accentButton(row, config.loadText or "Load Script", UDim2.fromOffset(BUTTON_WIDTH, 40), nil, "play")
+		loadHolder.AnchorPoint = Vector2.new(1, 1)
+		loadHolder.Position = UDim2.new(1, -PAD, 0, top + COVER)
 		button.MouseButton1Click:Connect(function()
 			Ui.fire(config.onLoad)
 		end)
 	end
+
+	local function layout()
+		local width = row.AbsoluteSize.X
+		if width <= 0 then
+			return
+		end
+		local chipWidth = supportChip.AbsoluteSize.X
+		headerLabel.Size = UDim2.new(1, -(28 + chipWidth + 8), 1, 0)
+		if width < 420 then
+			local coverSize = math.min(104, width - PAD * 2)
+			cover.Size = UDim2.fromOffset(coverSize, coverSize)
+			cover.Position = UDim2.fromOffset(PAD, top)
+			local infoLeft = PAD + coverSize + 12
+			name.Position = UDim2.fromOffset(infoLeft, top)
+			name.Size = UDim2.new(1, -(infoLeft + PAD), 0, 22)
+			creator.Position = UDim2.fromOffset(infoLeft, top + 24)
+			creator.Size = UDim2.new(1, -(infoLeft + PAD), 0, 16)
+			description.Position = UDim2.fromOffset(infoLeft, top + 44)
+			description.Size = UDim2.new(1, -(infoLeft + PAD), 0, math.max(40, coverSize - 44))
+			local tagsTop = top + coverSize + 10
+			tags.AnchorPoint = Vector2.zero
+			tags.Position = UDim2.fromOffset(PAD, tagsTop)
+			tags.Size = UDim2.new(1, -(PAD * 2), 0, 24)
+			if loadHolder then
+				loadHolder.AnchorPoint = Vector2.zero
+				loadHolder.Position = UDim2.fromOffset(PAD, tagsTop + 34)
+				loadHolder.Size = UDim2.new(1, -(PAD * 2), 0, 44)
+				row.Size = UDim2.new(1, 0, 0, tagsTop + 34 + 44 + PAD)
+			else
+				row.Size = UDim2.new(1, 0, 0, tagsTop + 24 + PAD)
+			end
+		else
+			cover.Size = UDim2.fromOffset(COVER, COVER)
+			cover.Position = UDim2.fromOffset(PAD, top)
+			name.Position = UDim2.fromOffset(left, top + 4)
+			name.Size = UDim2.new(1, -(left + PAD), 0, 22)
+			creator.Position = UDim2.fromOffset(left, top + 28)
+			creator.Size = UDim2.new(1, -(left + PAD), 0, 16)
+			description.Position = UDim2.fromOffset(left, top + 52)
+			description.Size = UDim2.new(1, -(left + PAD), 0, 52)
+			tags.AnchorPoint = Vector2.new(0, 1)
+			tags.Position = UDim2.new(0, left, 0, top + COVER - 8)
+			tags.Size = UDim2.new(1, -(left + PAD + (hasLoad and BUTTON_WIDTH + 12 or 0)), 0, 24)
+			if loadHolder then
+				loadHolder.AnchorPoint = Vector2.new(1, 1)
+				loadHolder.Position = UDim2.new(1, -PAD, 0, top + COVER)
+				loadHolder.Size = UDim2.fromOffset(BUTTON_WIDTH, 40)
+			end
+			row.Size = UDim2.new(1, 0, 0, top + COVER + PAD)
+		end
+	end
+	row:GetPropertyChangedSignal("AbsoluteSize"):Connect(layout)
+	supportChip:GetPropertyChangedSignal("AbsoluteSize"):Connect(layout)
+	layout()
 
 	Games.info(game.PlaceId, function(product)
 		if not row.Parent then
@@ -2276,7 +2386,7 @@ function Dropdown.create(tab, config)
 	local opener = Ui.inst("TextButton", {
 		AutoButtonColor = false,
 		Text = "",
-		Size = UDim2.new(1, 0, 0, 32),
+		Size = UDim2.new(1, 0, 0, 40),
 		BorderSizePixel = 0,
 		LayoutOrder = 3,
 		Parent = row,
@@ -2286,6 +2396,7 @@ function Dropdown.create(tab, config)
 	local current = Ui.label({
 		Text = "",
 		TextSize = 13,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		Position = UDim2.fromOffset(10, 0),
 		Size = UDim2.new(1, -32, 1, 0),
 		Parent = opener,
@@ -2297,7 +2408,7 @@ function Dropdown.create(tab, config)
 		TextSize = 13,
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -8, 0, 0),
-		Size = UDim2.fromOffset(16, 32),
+		Size = UDim2.fromOffset(16, 40),
 		TextXAlignment = Enum.TextXAlignment.Right,
 		Parent = opener,
 	})
@@ -2382,21 +2493,23 @@ function Dropdown.create(tab, config)
 		tab.window:closePopup()
 		rows = {}
 		local count = math.max(#values, 1)
-		local height = math.min(count, 8) * 30
+		local itemHeight = 36
+		local height = math.min(count, 8) * itemHeight
 		local width = math.max(opener.AbsoluteSize.X, 180)
 		local origin = tab.window.gui.AbsolutePosition
 		local top = opener.AbsolutePosition.Y - origin.Y
 		local x = opener.AbsolutePosition.X - origin.X
 		local y = top + opener.AbsoluteSize.Y + 6
 		local viewport = tab.window.gui.AbsoluteSize
-		if y + height > viewport.Y - 8 then
-			y = math.max(8, top - height - 6)
+		if y + height > viewport.Y - 8 and top - height - 6 >= 8 then
+			y = top - height - 6
 		end
+		local position, size = tab.window:popupBounds(width, height, x, y)
 
 		local menu = Ui.inst("Frame", {
 			Name = "Menu",
-			Position = UDim2.fromOffset(x, y),
-			Size = UDim2.fromOffset(width, height),
+			Position = UDim2.fromOffset(position.X, position.Y),
+			Size = UDim2.fromOffset(size.X, size.Y),
 			BorderSizePixel = 0,
 		})
 		Ui.panel(menu)
@@ -2418,8 +2531,9 @@ function Dropdown.create(tab, config)
 				Text = (selected and "✓  " or "    ") .. text,
 				Font = Enum.Font.Gotham,
 				TextSize = 13,
+				TextTruncate = Enum.TextTruncate.AtEnd,
 				TextXAlignment = Enum.TextXAlignment.Left,
-				Size = UDim2.new(1, 0, 0, 30),
+				Size = UDim2.new(1, 0, 0, itemHeight),
 				BackgroundTransparency = 1,
 				BorderSizePixel = 0,
 				Parent = scroller,
@@ -2737,7 +2851,7 @@ function Input.create(tab, config)
 		PlaceholderText = config.placeholder or "",
 		Font = Enum.Font.Gotham,
 		TextSize = 14,
-		Size = UDim2.new(1, 0, 0, 32),
+		Size = UDim2.new(1, 0, 0, 40),
 		BorderSizePixel = 0,
 		LayoutOrder = 3,
 		Parent = row,
@@ -2813,11 +2927,12 @@ local function asKey(value)
 end
 
 function Keybind.create(tab, config)
-	local row = Ui.line(tab.page, tab:nextOrder(), 48)
+	local row = Ui.line(tab.page, tab:nextOrder(), 52)
 	local title = Ui.label({
 		Text = config.title or "Keybind",
 		Font = Enum.Font.GothamMedium,
 		TextSize = 14,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		Position = UDim2.fromOffset(12, 0),
 		Size = UDim2.new(1, -132, 1, 0),
 		Parent = row,
@@ -2828,9 +2943,10 @@ function Keybind.create(tab, config)
 		AutoButtonColor = false,
 		Font = Enum.Font.GothamMedium,
 		TextSize = 13,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -12, 0.5, 0),
-		Size = UDim2.fromOffset(108, 28),
+		Size = UDim2.fromOffset(108, 36),
 		BorderSizePixel = 0,
 		Text = "",
 		Parent = row,
@@ -3132,8 +3248,8 @@ function Profile.create(tab, config)
 		Text = player and player.DisplayName or "Player",
 		Font = Enum.Font.GothamBold,
 		TextSize = 22,
-		Size = UDim2.fromScale(0, 1),
-		AutomaticSize = Enum.AutomaticSize.X,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Size = UDim2.fromScale(1, 1),
 		LayoutOrder = 1,
 		ZIndex = 2,
 		Parent = nameRow,
@@ -3144,6 +3260,7 @@ function Profile.create(tab, config)
 		verified = player.HasVerifiedBadge == true
 	end)
 	if verified then
+		name.Size = UDim2.new(1, -28, 1, 0)
 		Ui.icon(nameRow, "badge-check", {
 			Size = UDim2.fromOffset(20, 20),
 			LayoutOrder = 2,
@@ -3183,6 +3300,40 @@ function Profile.create(tab, config)
 	})
 	Theme.paint(tagline, "TextColor3", "muted")
 	tagline.TextTransparency = 0.25
+
+	local function layout()
+		local width = row.AbsoluteSize.X
+		if width <= 0 then
+			return
+		end
+		if width < 420 then
+			row.Size = UDim2.new(1, 0, 0, badge and 188 or 140)
+			halo.Position = UDim2.fromOffset(16, 28)
+			halo.AnchorPoint = Vector2.zero
+			halo.Size = UDim2.fromOffset(64, 64)
+			info.Position = UDim2.fromOffset(96, 0)
+			info.Size = UDim2.new(1, -108, 0, 124)
+			name.TextSize = 18
+			if badge then
+				badge.AnchorPoint = Vector2.new(1, 1)
+				badge.Position = UDim2.new(1, -12, 1, -10)
+			end
+		else
+			row.Size = UDim2.new(1, 0, 0, HEIGHT)
+			halo.AnchorPoint = Vector2.new(0, 0.5)
+			halo.Position = UDim2.new(0, 22, 0.5, 0)
+			halo.Size = UDim2.fromOffset(AVATAR, AVATAR)
+			info.Position = UDim2.fromOffset(left, 0)
+			info.Size = UDim2.new(1, -(left + right), 1, 0)
+			name.TextSize = 22
+			if badge then
+				badge.AnchorPoint = Vector2.new(1, 0.5)
+				badge.Position = UDim2.new(1, -16, 0.5, 0)
+			end
+		end
+	end
+	row:GetPropertyChangedSignal("AbsoluteSize"):Connect(layout)
+	layout()
 
 	local control = { type = "profile" }
 	function control:set(text)
@@ -3231,6 +3382,7 @@ function Slider.create(tab, config)
 		Text = config.title or "Slider",
 		Font = Enum.Font.GothamMedium,
 		TextSize = 14,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		Size = UDim2.new(1, -56, 1, 0),
 		Parent = header,
 	})
@@ -3252,7 +3404,7 @@ function Slider.create(tab, config)
 		AutoButtonColor = false,
 		Text = "",
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 22),
+		Size = UDim2.new(1, 0, 0, 36),
 		LayoutOrder = 3,
 		Parent = row,
 	})
@@ -3276,11 +3428,11 @@ function Slider.create(tab, config)
 	local knob = Ui.inst("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.new(0, 0, 0.5, 0),
-		Size = UDim2.fromOffset(14, 14),
+		Size = UDim2.fromOffset(18, 18),
 		BorderSizePixel = 0,
 		Parent = track,
 	})
-	Ui.corner(knob, 7)
+	Ui.corner(knob, 9)
 	Theme.paint(knob, "BackgroundColor3", "text")
 	Ui.stroke(knob, "glow", 0.3, 2)
 
@@ -3417,7 +3569,9 @@ function Stats.create(tab, config)
 	})
 
 	local function layout()
-		local columns = holder.AbsoluteSize.X >= (MIN_WIDE_CELL * 4) + (GAP * 3) and 4 or 2
+		local width = holder.AbsoluteSize.X
+		local columns = width < 340 and 1
+			or (width >= (MIN_WIDE_CELL * 4) + (GAP * 3) and 4 or 2)
 		local rows = math.ceil(4 / columns)
 		grid.CellSize = UDim2.new(1 / columns, -math.ceil(GAP * (columns - 1) / columns) - 1, 0, CELL_HEIGHT)
 		holder.Size = UDim2.new(1, 0, 0, (rows * CELL_HEIGHT) + ((rows - 1) * GAP))
@@ -3443,6 +3597,7 @@ function Stats.create(tab, config)
 			Text = title,
 			Font = Enum.Font.GothamMedium,
 			TextSize = 12,
+			TextTruncate = Enum.TextTruncate.AtEnd,
 			Position = UDim2.fromOffset(40, 14),
 			Size = UDim2.new(1, -54, 0, 18),
 			Parent = cell,
@@ -3619,7 +3774,9 @@ function SystemStatus.create(tab, config)
 		end
 		local count = #items
 		local chipWidth = chip and (chip.AbsoluteSize.X + GAP) or 0
-		local start = PAD + SUMMARY_WIDTH + GAP * 2 + 1
+		local summaryWidth = width < 360 and math.max(100, width - chipWidth) or SUMMARY_WIDTH
+		summaryBlock.Size = UDim2.fromOffset(summaryWidth, SUMMARY_HEIGHT)
+		local start = PAD + summaryWidth + GAP * 2 + 1
 		local area = width - (start - PAD) - chipWidth
 		local middle = PAD + SUMMARY_HEIGHT / 2
 		if chip then
@@ -3631,7 +3788,7 @@ function SystemStatus.create(tab, config)
 		end
 		if count == 0 or needed + (count - 1) * GAP <= area then
 			divider.Visible = count > 0
-			divider.Position = UDim2.fromOffset(PAD + SUMMARY_WIDTH + GAP, middle)
+			divider.Position = UDim2.fromOffset(PAD + summaryWidth + GAP, middle)
 			local extra = count > 0 and (area - needed - (count - 1) * GAP) / count or 0
 			local x = start
 			for _, item in ipairs(items) do
@@ -3800,11 +3957,12 @@ local Theme = require("Theme")
 local Toggle = {}
 
 function Toggle.create(tab, config)
-	local row = Ui.line(tab.page, tab:nextOrder(), 48)
+	local row = Ui.line(tab.page, tab:nextOrder(), 52)
 	local title = Ui.label({
 		Text = config.title or "Toggle",
 		Font = Enum.Font.GothamMedium,
 		TextSize = 14,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		Position = UDim2.fromOffset(12, 0),
 		Size = UDim2.new(1, -78, 1, 0),
 		Parent = row,
@@ -3816,21 +3974,21 @@ function Toggle.create(tab, config)
 		Text = "",
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -12, 0.5, 0),
-		Size = UDim2.fromOffset(42, 22),
+		Size = UDim2.fromOffset(50, 30),
 		BorderSizePixel = 0,
 		Parent = row,
 	})
-	Ui.corner(track, 11)
+	Ui.corner(track, 15)
 	local shine = Ui.gradient(track, "accent", "accent2", 0)
 	local stroke = Ui.stroke(track, "glow", 0.7, 1)
 
 	local knob = Ui.inst("Frame", {
-		Size = UDim2.fromOffset(16, 16),
+		Size = UDim2.fromOffset(20, 20),
 		BorderSizePixel = 0,
-		Position = UDim2.fromOffset(3, 3),
+		Position = UDim2.fromOffset(5, 5),
 		Parent = track,
 	})
-	Ui.corner(knob, 8)
+	Ui.corner(knob, 10)
 
 	local enabled = config.default == true
 	local control = { type = "toggle" }
@@ -3840,7 +3998,7 @@ function Toggle.create(tab, config)
 		track.BackgroundColor3 = enabled and Color3.new(1, 1, 1) or Theme.color("track")
 		stroke.Transparency = enabled and 0.3 or 0.7
 		knob.BackgroundColor3 = enabled and Theme.color("accentText") or Theme.color("muted")
-		Ui.tween(knob, { Position = UDim2.fromOffset(enabled and 23 or 3, 3) }, 0.14)
+		Ui.tween(knob, { Position = UDim2.fromOffset(enabled and 25 or 5, 5) }, 0.14)
 	end
 
 	function control:get()
@@ -3891,6 +4049,9 @@ local Window = {}
 local SIDEBAR_WIDTH = 176
 local COMPACT_WIDTH = 60
 local COMPACT_BELOW = 700
+local PHONE_BELOW = 600
+local TABLET_BELOW = 1000
+local SCREEN_MARGIN = 8
 local HEADER_HEIGHT = 72
 local TOP_HEIGHT = 40
 local FOOTER_HEIGHT = 30
@@ -3932,15 +4093,16 @@ end
 
 local function startSize(config, minSize)
 	local size = config.size or UDim2.fromOffset(1020, 640)
-	if size.X.Scale ~= 0 or size.Y.Scale ~= 0 then
-		return size
-	end
 	local viewport = viewportSize()
 	if viewport.X < 200 or viewport.Y < 200 then
 		return size
 	end
-	local width = math.min(size.X.Offset, math.max(minSize.X, viewport.X - 24))
-	local height = math.min(size.Y.Offset, math.max(minSize.Y, viewport.Y - 24))
+	local maxWidth = math.max(1, viewport.X - SCREEN_MARGIN * 2)
+	local maxHeight = math.max(1, viewport.Y - SCREEN_MARGIN * 2)
+	local requestedWidth = viewport.X * size.X.Scale + size.X.Offset
+	local requestedHeight = viewport.Y * size.Y.Scale + size.Y.Offset
+	local width = math.clamp(requestedWidth, math.min(minSize.X, maxWidth), maxWidth)
+	local height = math.clamp(requestedHeight, math.min(minSize.Y, maxHeight), maxHeight)
 	return UDim2.fromOffset(width, height)
 end
 
@@ -4085,7 +4247,7 @@ local function barButton(parent, iconName, order, hoverToken)
 		Name = iconName,
 		AutoButtonColor = false,
 		Text = "",
-		Size = UDim2.fromOffset(30, 30),
+		Size = UDim2.fromOffset(34, 34),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		LayoutOrder = order,
@@ -4268,14 +4430,14 @@ function Window.create(config, version)
 		AutoButtonColor = false,
 		Text = "",
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, -150, 1, 0),
+		Size = UDim2.new(1, -166, 1, 0),
 		Parent = topBar,
 	})
 	local buttons = Ui.inst("Frame", {
 		Name = "Buttons",
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -10, 0, 0),
-		Size = UDim2.new(0, 140, 1, 0),
+		Size = UDim2.new(0, 156, 1, 0),
 		BackgroundTransparency = 1,
 		Parent = topBar,
 	})
@@ -4395,6 +4557,7 @@ function Window.create(config, version)
 		controls = {},
 		dead = false,
 		compact = false,
+		breakpoint = "desktop",
 		maximized = false,
 		minimized = false,
 		startedAt = os.clock(),
@@ -4445,6 +4608,10 @@ function Window.create(config, version)
 		end
 		blocker.MouseButton1Click:Connect(closePopup)
 		self._closePopup = closePopup
+	end
+
+	function window:popupBounds(width, height, x, y, margin)
+		return Ui.clampRect(self.gui.AbsoluteSize, width, height, x, y, margin or SCREEN_MARGIN)
 	end
 
 	function window:register(id, control)
@@ -4510,6 +4677,7 @@ function Window.create(config, version)
 	end
 
 	local restore = nil
+	local fitToViewport
 	function window:setMaximized(state)
 		if self.dead or (state == true) == self.maximized then
 			return
@@ -4526,6 +4694,9 @@ function Window.create(config, version)
 			shell.Position = restore.position
 			shell.Size = restore.size
 			restore = nil
+			if fitToViewport then
+				task.defer(fitToViewport)
+			end
 		end
 		resize.Visible = not self.maximized
 		growIcon.frame.Visible = not self.maximized
@@ -4536,15 +4707,15 @@ function Window.create(config, version)
 		if self.dead then
 			return
 		end
-		local width = 290
+		local width = math.min(290, math.max(1, gui.AbsoluteSize.X - SCREEN_MARGIN * 2))
 		local origin = gui.AbsolutePosition
 		local anchor = bell.AbsolutePosition - origin
+		local preferredX = anchor.X + bell.AbsoluteSize.X - width
+		local preferredY = anchor.Y + bell.AbsoluteSize.Y + 6
+		local initialPosition = self:popupBounds(width, 60, preferredX, preferredY)
 		local panel = Ui.inst("Frame", {
 			Name = "Notifications",
-			Position = UDim2.fromOffset(
-				math.max(8, anchor.X + bell.AbsoluteSize.X - width),
-				anchor.Y + bell.AbsoluteSize.Y + 6
-			),
+			Position = UDim2.fromOffset(initialPosition.X, initialPosition.Y),
 			Size = UDim2.fromOffset(width, 60),
 			BorderSizePixel = 0,
 		})
@@ -4603,8 +4774,10 @@ function Window.create(config, version)
 		end
 
 		local function fit()
-			local maxHeight = math.max(120, gui.AbsoluteSize.Y - panel.Position.Y.Offset - 12)
-			panel.Size = UDim2.fromOffset(width, math.min(list.AbsoluteContentSize.Y + 20, 380, maxHeight))
+			local wantedHeight = math.min(list.AbsoluteContentSize.Y + 20, 380)
+			local position, size = self:popupBounds(width, wantedHeight, preferredX, preferredY)
+			panel.Position = UDim2.fromOffset(position.X, position.Y)
+			panel.Size = UDim2.fromOffset(size.X, size.Y)
 		end
 		list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(fit)
 		self:showPopup(panel)
@@ -4633,12 +4806,16 @@ function Window.create(config, version)
 		if width <= 0 then
 			return
 		end
+		local viewportWidth = gui.AbsoluteSize.X
+		local breakpoint = viewportWidth < PHONE_BELOW and "phone"
+			or (viewportWidth < TABLET_BELOW and "tablet" or "desktop")
 		local compact = width < COMPACT_BELOW
-		if laidOut and compact == window.compact then
+		if laidOut and compact == window.compact and breakpoint == window.breakpoint then
 			return
 		end
 		laidOut = true
 		window.compact = compact
+		window.breakpoint = breakpoint
 		local railWidth = compact and COMPACT_WIDTH or SIDEBAR_WIDTH
 		sidebar.Size = UDim2.new(0, railWidth, 1, 0)
 		content.Position = UDim2.fromOffset(railWidth, 0)
@@ -4654,12 +4831,43 @@ function Window.create(config, version)
 		if layoutAvatar then
 			layoutAvatar(compact)
 		end
+		footerRight.Visible = breakpoint ~= "phone"
+		footerLeft.Size = breakpoint == "phone" and UDim2.new(1, -32, 1, 0) or UDim2.new(0.5, -16, 1, 0)
 		for _, tab in ipairs(window.tabs) do
-			tab:layout(compact)
+			tab:layout(compact, breakpoint)
 		end
 	end
 	window:connect(frame:GetPropertyChangedSignal("AbsoluteSize"), layout)
 	layout()
+
+	fitToViewport = function()
+		if window.dead or window.maximized then
+			return
+		end
+		local screen = gui.AbsoluteSize
+		if screen.X <= 0 or screen.Y <= 0 then
+			return
+		end
+		local maxWidth = math.max(1, screen.X - SCREEN_MARGIN * 2)
+		local maxHeight = math.max(1, screen.Y - SCREEN_MARGIN * 2)
+		local width = math.clamp(shell.AbsoluteSize.X, math.min(minSize.X, maxWidth), maxWidth)
+		local height = math.clamp(shell.AbsoluteSize.Y, math.min(minSize.Y, maxHeight), maxHeight)
+		local topLeft = shell.AbsolutePosition - gui.AbsolutePosition
+		local x = math.clamp(topLeft.X, SCREEN_MARGIN, math.max(SCREEN_MARGIN, screen.X - width - SCREEN_MARGIN))
+		local y = math.clamp(topLeft.Y, SCREEN_MARGIN, math.max(SCREEN_MARGIN, screen.Y - height - SCREEN_MARGIN))
+		shell.AnchorPoint = Vector2.zero
+		shell.Position = UDim2.fromOffset(x, y)
+		shell.Size = UDim2.fromOffset(width, height)
+	end
+	window:connect(gui:GetPropertyChangedSignal("AbsoluteSize"), function()
+		fitToViewport()
+		layout()
+	end)
+	local camera = workspace.CurrentCamera
+	if camera then
+		window:connect(camera:GetPropertyChangedSignal("ViewportSize"), fitToViewport)
+	end
+	task.defer(fitToViewport)
 
 	local toggleKey = asKey(config.toggleKey)
 	local dragging = false
@@ -4703,15 +4911,19 @@ function Window.create(config, version)
 			local delta = input.Position - pressStart
 			local screen = gui.AbsoluteSize
 			local topLeft = shell.AbsolutePosition - gui.AbsolutePosition
-			local maxWidth = math.max(minSize.X, screen.X - topLeft.X)
-			local maxHeight = math.max(minSize.Y, screen.Y - topLeft.Y)
+			local maxWidth = math.max(1, screen.X - topLeft.X - SCREEN_MARGIN)
+			local maxHeight = math.max(1, screen.Y - topLeft.Y - SCREEN_MARGIN)
 			shell.Size = UDim2.fromOffset(
-				math.clamp(startDims.X + delta.X, minSize.X, maxWidth),
-				math.clamp(startDims.Y + delta.Y, minSize.Y, maxHeight)
+				math.clamp(startDims.X + delta.X, math.min(minSize.X, maxWidth), maxWidth),
+				math.clamp(startDims.Y + delta.Y, math.min(minSize.Y, maxHeight), maxHeight)
 			)
 		elseif dragging then
 			local delta = input.Position - pressStart
-			shell.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+			local width, height = shell.AbsoluteSize.X, shell.AbsoluteSize.Y
+			local screen = gui.AbsoluteSize
+			local x = math.clamp(startPos.X.Offset + delta.X, SCREEN_MARGIN, math.max(SCREEN_MARGIN, screen.X - width - SCREEN_MARGIN))
+			local y = math.clamp(startPos.Y.Offset + delta.Y, SCREEN_MARGIN, math.max(SCREEN_MARGIN, screen.Y - height - SCREEN_MARGIN))
+			shell.Position = UDim2.fromOffset(x, y)
 		end
 	end)
 
